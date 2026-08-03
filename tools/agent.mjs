@@ -54,6 +54,7 @@ function firstCommentLine(text) {
 let written = null;
 const readCache = new Set();
 let lastValidateErrors = null;
+let validateFails = 0;
 
 const toolHandlers = {
   list_examples() {
@@ -69,23 +70,27 @@ const toolHandlers = {
     return readFileSync(file, 'utf8');
   },
   validate_config({ yaml }) {
-    const { ok, errors } = validateConfigText(yaml ?? '');
-    if (ok) { lastValidateErrors = null; return 'OK: конфиг валиден (schema + semantic).'; }
+    const { ok, errors, warnings } = validateConfigText(yaml ?? '');
+    const warn = warnings.length ? `\nПредупреждения (не блокируют):\n${warnings.join('\n')}` : '';
+    if (ok) { lastValidateErrors = null; validateFails = 0; return 'OK: конфиг валиден (schema + semantic).' + warn; }
+    validateFails++;
     const key = errors.join('\n');
     const repeat = key === lastValidateErrors;
     lastValidateErrors = key;
-    return `Ошибки:\n${key}` + (repeat
-      ? '\n\n(это ТЕ ЖЕ ошибки, что и в прошлый раз — не перечитывай примеры, исправь именно указанные места и вызови validate_config снова)'
-      : '');
+    let suffix = '';
+    if (repeat) suffix = '\n\n(это ТЕ ЖЕ ошибки, что и в прошлый раз — не перечитывай примеры, исправь именно указанные места и вызови validate_config снова)';
+    else if (validateFails >= 3) suffix = `\n\n(уже ${validateFails} неудачных проверок подряд — читай ошибки буквально: если тип, функция или событие названы несуществующими, замени их на существующие из списка в ошибке, а не переставляй поля)`;
+    return `Ошибки:\n${key}${warn}${suffix}`;
   },
   write_config({ yaml }) {
-    const { ok, errors } = validateConfigText(yaml ?? '');
+    const { ok, errors, warnings } = validateConfigText(yaml ?? '');
     if (!ok) return `Отклонено, конфиг невалиден:\n${errors.join('\n')}`;
+    const warn = warnings.length ? `\nПредупреждения (не блокируют):\n${warnings.join('\n')}` : '';
     mkdirSync(outDir, { recursive: true });
     const target = resolve(outDir, 'app.yaml');
     writeFileSync(target, yaml, 'utf8');
     written = target;
-    return `Записано: ${target}`;
+    return `Записано: ${target}` + warn;
   },
 };
 

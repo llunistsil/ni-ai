@@ -59,12 +59,23 @@ serve в браузере и проверяешь руками.
   и localBindings, дубликаты id, поток данных выражений: JSONata парсится,
   источники в payload/condition объявлены в triggers/context — включая
   NitroPayload-интерполяцию "{root....}"; реестр событий и экшенов по типам
-  сущностей; вызовы только существующих функций JSONata)
+  сущностей; вызовы только существующих функций JSONata; несуществующие типы
+  примитивов и сервисов называются по имени со списком допустимых)
 - `tools/agent.mjs` — агент, OpenAI Chat Completions через LLM Proxy
   (env: LLM_PROXY_URL, LLM_PROXY_TOKEN, NITRO_MODEL, NITRO_MAX_TURNS,
   NITRO_MAX_TOKENS). Флаг --trace пишет полный messages по ходам
   в out/trace.json — прикладывай его к разборам фейлов. Gemini — другой контракт (generateContent), при
   необходимости добавим отдельным адаптером.
+
+## Палитра платформы
+
+Примитивы: panel, container, grid, text, icon, image, avatar, badge, button,
+link, textfield, tabs, router, dropdown, menu, menuGroup, loader, iframe,
+microfrontend, componentPresenter, component. Других НЕТ: чекбоксов, свитчей
+и радио не существует — переключатели делаются кнопками с appearance-состоянием
+из модели (паттерн — checklist-fixed.yaml в корне пакета).
+Сервисы: alerts, navigation, browserTab, browserEnvironment, timer,
+микрофронт-как-сервис.
 
 ## Правила (поведение, невыразимое схемой — их читает агент)
 

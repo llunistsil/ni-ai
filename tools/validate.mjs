@@ -2,19 +2,14 @@
 /**
  * Валидатор конфигов Нитро3.
  *
- * Уровень 1 — структурный: ajv по schema/configSchema.json.
- * Уровень 2 — семантический:
- *   - ссылки биндингов (глобальных и localBindings) разрешаются в области видимости;
- *   - дубликаты id;
- *   - реестр событий: имя события в triggers/context существует у сущности
- *     этого типа (textfield -> text, timer -> tick/isStarted, ...);
- *   - реестр экшенов: имя экшена существует у цели (model -> set, ds -> send,
- *     timer -> start/stop, примитивы -> setInputs, ...);
- *   - поток данных выражений: JSONata парсится, вызываются только существующие
- *     функции, источники в payload/condition объявлены в triggers/context
- *     (включая NitroPayload-интерполяцию "{root....}").
+ * Уровень 1 — структурный: пер-узловая валидация по ветке типа
+ * (несуществующий тип называется по имени со списком допустимых; никакого
+ * oneOf-шума), ajv по полной схеме — как страховка на непокрытые места.
+ * Уровень 2 — семантический: ссылки и дубликаты id; реестры событий и экшенов;
+ * поток данных выражений (JSONata парсится, функции существуют, источники
+ * объявлены в triggers/context, NitroPayload-интерполяция "{root....}").
+ * Предупреждения (не валят): .length вместо $count, известные баги канона.
  *
- * Реестры покрывают подтверждённые типы; неизвестные типы не проверяются.
  * Использование: node tools/validate.mjs <файл.yaml> [...]  (0 — все валидны)
  */
 import { readFileSync } from 'node:fs';
@@ -26,8 +21,54 @@ import jsonata from 'jsonata';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const schema = JSON.parse(readFileSync(resolve(here, '../schema/configSchema.json'), 'utf8'));
-const ajv = new Ajv2020({ strict: false, allErrors: true });
-const validateSchema = ajv.compile(schema);
+
+const ajvFull = new Ajv2020({ strict: false, allErrors: true });
+const validateFull = ajvFull.compile(schema);
+
+// ---------- Пер-узловые валидаторы по веткам типов ----------
+// Дети-примитивы, вложенные компоненты и трансформеры застаблены:
+// их проверяет собственный визит обхода — поэтому ошибки узла точечные.
+const ajvNode = new Ajv2020({ strict: false, allErrors: true });
+const stubDefs = structuredClone(schema.definitions);
+stubDefs.primitive = { type: 'object' };
+stubDefs.component = { type: 'object' };
+stubDefs.payloadTransformer = { type: 'object' };
+stubDefs.service = { type: 'object' };
+
+const primitiveDefNames = (schema.definitions.primitive.oneOf ?? [])
+  .map(v => v?.$ref?.split('/').pop())
+  .filter(Boolean);
+const primitiveValidators = new Map();
+for (const name of primitiveDefNames) {
+  if (name === 'component') continue;
+  const def = schema.definitions[name];
+  const c = def?.properties?.type?.const;
+  if (c) primitiveValidators.set(c, ajvNode.compile({ definitions: stubDefs, ...structuredClone(def) }));
+}
+const ALLOWED_PRIMITIVES = [...primitiveValidators.keys(), 'component'].sort().join(', ');
+
+const serviceValidators = new Map();
+for (const variant of schema.definitions.service.oneOf ?? []) {
+  const c = variant?.properties?.type?.const;
+  if (c) serviceValidators.set(c, ajvNode.compile(structuredClone(variant)));
+}
+serviceValidators.set('microfrontend', primitiveValidators.get('microfrontend'));
+const ALLOWED_SERVICES = [...serviceValidators.keys()].sort().join(', ');
+
+const componentDef = structuredClone(schema.definitions.component);
+componentDef.properties.root = { type: 'object' };
+componentDef.properties.components = { type: 'object' };
+componentDef.properties.services = { type: 'array' };
+const componentValidator = ajvNode.compile({ definitions: stubDefs, ...componentDef });
+
+function pushNodeErrors(validator, node, path, issues) {
+  if (validator(node)) return;
+  const seen = new Set();
+  for (const e of validator.errors ?? []) {
+    const line = `[schema] ${path}${e.instancePath} ${e.message} ${JSON.stringify(e.params)}`;
+    if (!seen.has(line)) { seen.add(line); issues.push(line); }
+  }
+}
 
 // Известные латентные баги канона: даунгрейд до warning. Снять после фикса в проде.
 const KNOWN_CANON_ISSUES = [
@@ -54,47 +95,33 @@ const ACTIONS = {
   primitive: ['setInputs'],
 };
 
-// Стандартная библиотека JSONata (без $ в именах).
 const JSONATA_BUILTINS = new Set(['abs','append','assert','average','base64decode','base64encode','boolean','ceil','contains','count','decodeUrl','decodeUrlComponent','distinct','each','encodeUrl','encodeUrlComponent','error','eval','exists','filter','floor','formatBase','formatInteger','formatNumber','fromMillis','join','keys','length','lookup','lowercase','map','match','max','merge','millis','min','not','now','number','pad','parseInteger','power','random','reduce','replace','reverse','round','shuffle','sift','single','sort','split','spread','sqrt','string','substring','substringAfter','substringBefore','sum','toMillis','trim','type','uppercase','zip']);
 const FN_HINTS = {
   if: 'в JSONata нет $if — условие пишется тернарником: cond ? a : b',
   ifelse: 'в JSONata нет $ifelse — условие пишется тернарником: cond ? a : b',
+  remove: 'в JSONata нет $remove — исключай элементы фильтром: [arr[$ != значение]]',
   concat: 'конкатенация строк в JSONata — оператор &',
 };
 
-// ---------- Уровень 1 ----------
+// ---------- Обход дерева с путями ----------
 
-function pickDeepestErrors(errors, limit = 12) {
-  const maxDepth = Math.max(...errors.map(e => e.instancePath.split('/').length));
-  const deepest = errors.filter(e => e.instancePath.split('/').length >= maxDepth - 1);
-  const seen = new Set(); const out = [];
-  for (const e of deepest) {
-    const key = `${e.instancePath}|${e.message}|${JSON.stringify(e.params)}`;
-    if (seen.has(key)) continue;
-    seen.add(key); out.push(e);
-    if (out.length >= limit) break;
-  }
-  return out;
-}
-
-// ---------- Обход дерева ----------
-
-const CHILD_KEYS = ['content', 'trigger', 'moreContent'];
-const CHILD_LIST_KEYS = ['items', 'groups'];
-
-function walkPrimitives(node, visit) {
+function walkPrimitives(node, path, visit) {
   if (!node || typeof node !== 'object' || Array.isArray(node)) return;
-  visit(node);
-  if (node.type === 'component') return;
-  for (const key of CHILD_KEYS) walkPrimitives(node[key], visit);
-  for (const key of CHILD_LIST_KEYS) for (const child of node[key] ?? []) walkPrimitives(child, visit);
-  if (node.areas) for (const child of Object.values(node.areas)) walkPrimitives(child, visit);
-  if (node.defaultRoute) walkPrimitives(node.defaultRoute.content, visit);
-  for (const route of node.routes ?? []) walkPrimitives(route.content, visit);
-  for (const tab of node.tabs ?? []) { walkPrimitives(tab.title, visit); walkPrimitives(tab.content, visit); }
+  visit(node, path);
+  if (node.type === 'component') return; // отдельная область — обработает checkComponent
+  for (const key of ['content', 'trigger', 'moreContent']) walkPrimitives(node[key], `${path}.${key}`, visit);
+  (node.items ?? []).forEach((c, i) => walkPrimitives(c, `${path}.items[${i}]`, visit));
+  (node.groups ?? []).forEach((c, i) => walkPrimitives(c, `${path}.groups[${i}]`, visit));
+  for (const [k, c] of Object.entries(node.areas ?? {})) walkPrimitives(c, `${path}.areas.${k}`, visit);
+  if (node.defaultRoute) walkPrimitives(node.defaultRoute.content, `${path}.defaultRoute.content`, visit);
+  (node.routes ?? []).forEach((r, i) => walkPrimitives(r?.content, `${path}.routes[${i}].content`, visit));
+  (node.tabs ?? []).forEach((t, i) => {
+    walkPrimitives(t?.title, `${path}.tabs[${i}].title`, visit);
+    walkPrimitives(t?.content, `${path}.tabs[${i}].content`, visit);
+  });
 }
 
-// ---------- Выражения: функции и корни ----------
+// ---------- Выражения ----------
 
 function walkAst(node, cb) {
   if (!node || typeof node !== 'object') return;
@@ -103,7 +130,7 @@ function walkAst(node, cb) {
   for (const v of Object.values(node)) walkAst(v, cb);
 }
 
-function analyzeJsonata(expression, where, issues) {
+function analyzeJsonata(expression, where, issues, warnings) {
   let ast;
   try { ast = jsonata(expression).ast(); }
   catch (e) {
@@ -112,6 +139,7 @@ function analyzeJsonata(expression, where, issues) {
   }
   const roots = new Set();
   const defined = new Set();
+  let lengthWarned = false;
   walkAst(ast, n => {
     if (n?.type === 'bind' && n.lhs?.type === 'variable') defined.add(n.lhs.value);
     if (n?.type === 'lambda') for (const a of n.arguments ?? []) if (a?.type === 'variable') defined.add(a.value);
@@ -121,6 +149,10 @@ function analyzeJsonata(expression, where, issues) {
       const s0 = n.steps[0];
       if (s0.type === 'name') roots.add(s0.value);
       else if (s0.type === 'variable' && s0.value === '$' && n.steps[1]?.type === 'name') roots.add(n.steps[1].value);
+      if (!lengthWarned && n.steps.some(s => s?.type === 'name' && s.value === 'length')) {
+        lengthWarned = true;
+        warnings.push(`[lint] ${where}: путь ".length" — в JSONata длина массива это $count(x)`);
+      }
     }
     if ((n?.type === 'function' || n?.type === 'partial') && n.procedure?.type === 'variable') {
       const name = n.procedure.value;
@@ -143,8 +175,12 @@ function nitroPayloadRoots(value, roots = new Set()) {
 
 function checkTransformerData(tr, allowed, scope, where, issues, warnings) {
   if (!tr || typeof tr !== 'object') return;
+  if (tr.type !== 'JSONata' && tr.type !== 'NitroPayload') {
+    issues.push(`${where}: неизвестный тип трансформера "${tr.type}"; допустимые: NitroPayload, JSONata`);
+    return;
+  }
   let roots = new Set();
-  if (tr.type === 'JSONata' && typeof tr.expression === 'string') roots = analyzeJsonata(tr.expression, where, issues);
+  if (tr.type === 'JSONata' && typeof tr.expression === 'string') roots = analyzeJsonata(tr.expression, where, issues, warnings);
   else if (tr.type === 'NitroPayload') roots = nitroPayloadRoots(tr.value);
   for (const root of roots) {
     if (allowed.has(root)) continue;
@@ -192,12 +228,12 @@ function checkSources(sources, scope, where, issues) {
 
 function actionList(actions) { return Array.isArray(actions) ? actions : [actions]; }
 
-function checkActions(actions, allowed, scope, where, issues, warnings, checkNames = true) {
+function checkActions(actions, allowed, scope, where, issues, warnings) {
   actionList(actions ?? []).forEach((action, j) => {
     const aPath = `${where}[${j}:${action?.target ?? '?'}]`;
     const entry = action?.target ? scope.get(action.target) : null;
     if (action?.target && !entry) issues.push(`${aPath}: неизвестный target "${action.target}"`);
-    if (checkNames && entry && action?.action) {
+    if (entry && action?.action) {
       const known = actionsFor(entry);
       if (known && !known.includes(action.action)) {
         issues.push(`${aPath}: экшена "${action.action}" нет у ${entry.label} "${action.target}"; известные: ${known.join(', ')}`);
@@ -209,18 +245,36 @@ function checkActions(actions, allowed, scope, where, issues, warnings, checkNam
 }
 
 function checkComponent(component, path, issues, warnings) {
+  // Структурная проверка самого узла-компонента (root/components/services — отдельно).
+  pushNodeErrors(componentValidator, component, path, issues);
+
   const scope = new Map();
   scope.set('COMPONENT', { kind: 'self', label: 'компонента', events: Object.keys(component.properties ?? {}) });
   const duplicates = new Set();
-  walkPrimitives(component.root, node => {
+
+  // Один обход: структурная валидация каждого примитива + сбор области видимости.
+  walkPrimitives(component.root, `${path}.root`, (node, p) => {
+    const t = node.type;
+    if (!t) issues.push(`[schema] ${p}: у примитива нет type; допустимые типы: ${ALLOWED_PRIMITIVES}`);
+    else if (t === 'component') { checkComponent(node, p, issues, warnings); return; }
+    else if (!primitiveValidators.has(t)) issues.push(`[schema] ${p}: неизвестный тип примитива "${t}"; допустимые: ${ALLOWED_PRIMITIVES}`);
+    else pushNodeErrors(primitiveValidators.get(t), node, p, issues);
     if (typeof node.id === 'string') {
       if (scope.has(node.id)) duplicates.add(node.id);
-      scope.set(node.id, { kind: 'primitive', type: node.type, label: node.type });
+      scope.set(node.id, { kind: 'primitive', type: node.type, label: node.type ?? 'примитива' });
     }
   });
+
   for (const key of Object.keys(component.models ?? {})) scope.set(key, { kind: 'model', label: 'модели' });
   for (const key of Object.keys(component.dataSources ?? {})) scope.set(key, { kind: 'dataSource', label: 'dataSource' });
-  for (const s of component.services ?? []) scope.set(s.id ?? s.type, { kind: 'service', type: s.type, label: `сервиса ${s.type}` });
+  (component.services ?? []).forEach((s, i) => {
+    const sPath = `${path}.services[${i}]`;
+    if (!s?.type) { issues.push(`[schema] ${sPath}: у сервиса нет type; допустимые: ${ALLOWED_SERVICES}`); return; }
+    const v = serviceValidators.get(s.type);
+    if (!v) { issues.push(`[schema] ${sPath}: неизвестный тип сервиса "${s.type}"; допустимые: ${ALLOWED_SERVICES}`); return; }
+    pushNodeErrors(v, s, sPath, issues);
+    scope.set(s.id ?? s.type, { kind: 'service', type: s.type, label: `сервиса ${s.type}` });
+  });
   for (const id of duplicates) issues.push(`${path}: дубликат id примитива "${id}" в одной области видимости`);
 
   (component.bindings ?? []).forEach((binding, i) => {
@@ -232,10 +286,10 @@ function checkComponent(component, path, issues, warnings) {
     checkActions(binding.actions, allowed, scope, `${bPath}.actions`, issues, warnings);
   });
 
-  walkPrimitives(component.root, node => {
+  walkPrimitives(component.root, `${path}.root`, (node, p) => {
     const local = node.localBindings;
     if (!local) return;
-    const label = `${path}.<${node.type}${node.id ? '#' + node.id : ''}>.localBindings`;
+    const label = `${p}<${node.type}${node.id ? '#' + node.id : ''}>.localBindings`;
     for (const [name, b] of Object.entries(local.inputs ?? {})) {
       const w = `${label}.inputs.${name}`;
       checkSources(b.triggers, scope, `${w}.triggers`, issues);
@@ -268,6 +322,19 @@ function checkComponent(component, path, issues, warnings) {
 
 // ---------- API ----------
 
+function pickDeepestErrors(errors, limit = 12) {
+  const maxDepth = Math.max(...errors.map(e => e.instancePath.split('/').length));
+  const deepest = errors.filter(e => e.instancePath.split('/').length >= maxDepth - 1);
+  const seen = new Set(); const out = [];
+  for (const e of deepest) {
+    const key = `${e.instancePath}|${e.message}|${JSON.stringify(e.params)}`;
+    if (seen.has(key)) continue;
+    seen.add(key); out.push(e);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 export function validateConfigText(yamlText) {
   let config;
   try { config = yaml.load(yamlText); }
@@ -275,16 +342,32 @@ export function validateConfigText(yamlText) {
 
   const errors = [];
   const warnings = [];
-  if (!validateSchema(config)) {
-    for (const e of pickDeepestErrors(validateSchema.errors)) {
+  const semantic = [];
+
+  if (config && typeof config === 'object' && config.type === 'component') {
+    checkComponent(config, '$', semantic, warnings);
+  } else if (config && typeof config === 'object') {
+    walkPrimitives(config, '$', (node, p) => {
+      const t = node.type;
+      if (!t) semantic.push(`[schema] ${p}: у примитива нет type; допустимые типы: ${ALLOWED_PRIMITIVES}`);
+      else if (t === 'component') checkComponent(node, p, semantic, warnings);
+      else if (!primitiveValidators.has(t)) semantic.push(`[schema] ${p}: неизвестный тип примитива "${t}"; допустимые: ${ALLOWED_PRIMITIVES}`);
+      else pushNodeErrors(primitiveValidators.get(t), node, p, semantic);
+    });
+  } else {
+    return { ok: false, errors: ['конфиг пуст или не является объектом'], warnings: [] };
+  }
+
+  for (const s of semantic) errors.push(s.startsWith('[') ? s : `[semantic] ${s}`);
+
+  // Страховка: полная схема на случай непокрытых обходом мест.
+  const fullOk = validateFull(config);
+  if (!fullOk && errors.length === 0) {
+    for (const e of pickDeepestErrors(validateFull.errors)) {
       errors.push(`[schema] ${e.instancePath || '/'} ${e.message} ${JSON.stringify(e.params)}`);
     }
   }
-  if (config?.type === 'component') {
-    const issues = [];
-    checkComponent(config, '$', issues, warnings);
-    for (const i of issues) errors.push(`[semantic] ${i}`);
-  }
+
   return { ok: errors.length === 0, errors, warnings };
 }
 
