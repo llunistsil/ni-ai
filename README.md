@@ -23,6 +23,13 @@ export LLM_PROXY_TOKEN=<API key из ЛК прокси>
 # опционально: export NITRO_MODEL=<провайдер/модель>   (default: openai/gpt-5.4)
 # если node ругается на TLS-сертификат: NODE_EXTRA_CA_CERTS=<корп. CA>
 #   (или NODE_TLS_REJECT_UNAUTHORIZED=0 — аналог verify=False из доков прокси)
+#
+# внешние модели через OpenRouter (сравнение, в т.ч. Claude) — база с /api/v1:
+#   LLM_PROXY_URL=https://openrouter.ai/api/v1 LLM_PROXY_TOKEN=<ключ OpenRouter>
+#   NITRO_MODEL=anthropic/claude-sonnet-4.5   # точные id — в каталоге OpenRouter
+# ВНИМАНИЕ: внешнему провайдеру уходят системный промпт (README) и прочитанные
+# эталоны. canonical/nitro-editor.yaml — внутренний конфиг с внутренними URL:
+# внешним моделям его не скармливать (не проси их читать канон).
 
 npm run agent -- "<промпт из списка ниже>"
 # в консоли — трасса инструментов; результат: out/app.yaml
