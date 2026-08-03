@@ -1,7 +1,11 @@
 # Что показывает: сервис timer и смешение глобальных биндингов с локальными.
-# Механизмы: сервис timer (mode manual — стартует экшеном, interval, timerType),
-# экшены start/stop без payload, события tick {timePassed} и isStarted,
-# localBindings.inputs на события сервиса (elapsed-текст, disabled кнопок).
+# Механизмы: сервис timer (mode manual — стартует экшеном; interval минимум
+# 1000мс — меньше сервис кидает throw в конструкторе), экшены start/stop,
+# события tick {timePassed} и isStarted, localBindings.inputs на события сервиса.
+# Семантика: payload обязателен у ЛЮБОГО экшена (рантайм падает без него);
+# tick.timePassed — реальное время от старта (Date.now() - startedAt);
+# stop() гасит таймер, повторный start() всегда начинает С НУЛЯ (рестарт),
+# паузы с продолжением у сервиса нет.
 type: component
 root:
   type: panel
@@ -90,16 +94,21 @@ services:
     interval: 1000
     timerType: normal
 bindings:
-  # Экшены сервиса без payload.
   - triggers:
       startButton:
         - click
     actions:
       - target: clock
         action: start
+        payload:
+          type: NitroPayload
+          value: null
   - triggers:
       stopButton:
         - click
     actions:
       - target: clock
         action: stop
+        payload:
+          type: NitroPayload
+          value: null

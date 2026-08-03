@@ -47,7 +47,9 @@ serve в браузере и проверяешь руками.
 
 ## Состав
 
-- `schema/configSchema.json` — структура конфига (источник истины; v0.2 —
+- `schema/configSchema.json` — структура конфига (источник истины; v0.3 —
+  payload/target/action обязательны у экшена (подтверждено рантаймом),
+  interval таймера ≥ 1000; v0.2 —
   добавлены localBindings по типам платформы, bindingAction/bindingSources,
   mode у dataSource и timer, починены isActiveMatchOptions и menuGroup)
 - `examples/*.yaml` — 12 эталонов, каждый про один механизм (шапка файла говорит,
