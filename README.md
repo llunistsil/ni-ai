@@ -62,7 +62,8 @@ serve в браузере и проверяешь руками.
   сущностей; вызовы только существующих функций JSONata)
 - `tools/agent.mjs` — агент, OpenAI Chat Completions через LLM Proxy
   (env: LLM_PROXY_URL, LLM_PROXY_TOKEN, NITRO_MODEL, NITRO_MAX_TURNS,
-  NITRO_MAX_TOKENS). Gemini — другой контракт (generateContent), при
+  NITRO_MAX_TOKENS). Флаг --trace пишет полный messages по ходам
+  в out/trace.json — прикладывай его к разборам фейлов. Gemini — другой контракт (generateContent), при
   необходимости добавим отдельным адаптером.
 
 ## Правила (поведение, невыразимое схемой — их читает агент)

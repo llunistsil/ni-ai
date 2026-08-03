@@ -31,6 +31,7 @@ const examplesDir = resolve(root, 'examples');
 const canonicalDir = resolve(root, 'canonical');
 const outDir = resolve(root, 'out');
 
+const TRACE = process.env.NITRO_TRACE === '1' || process.argv.includes('--trace');
 const PROXY_URL = process.env.LLM_PROXY_URL ?? 'https://llm-proxy.t-tech.team';
 const MODEL = process.env.NITRO_MODEL ?? 'openai/gpt-5.4';
 const MAX_TURNS = Number(process.env.NITRO_MAX_TURNS ?? 15);
@@ -51,6 +52,8 @@ function firstCommentLine(text) {
 }
 
 let written = null;
+const readCache = new Set();
+let lastValidateErrors = null;
 
 const toolHandlers = {
   list_examples() {
@@ -61,11 +64,19 @@ const toolHandlers = {
   read_example({ name }) {
     const file = exampleFiles().find(p => basename(p) === name);
     if (!file) return `Ошибка: примера "${name}" нет. Возьми имя из list_examples.`;
+    if (readCache.has(name)) return `Пример ${name} уже прочитан — его полный текст выше в истории. Повторно не читаю, используй его.`;
+    readCache.add(name);
     return readFileSync(file, 'utf8');
   },
   validate_config({ yaml }) {
     const { ok, errors } = validateConfigText(yaml ?? '');
-    return ok ? 'OK: конфиг валиден (schema + semantic).' : `Ошибки:\n${errors.join('\n')}`;
+    if (ok) { lastValidateErrors = null; return 'OK: конфиг валиден (schema + semantic).'; }
+    const key = errors.join('\n');
+    const repeat = key === lastValidateErrors;
+    lastValidateErrors = key;
+    return `Ошибки:\n${key}` + (repeat
+      ? '\n\n(это ТЕ ЖЕ ошибки, что и в прошлый раз — не перечитывай примеры, исправь именно указанные места и вызови validate_config снова)'
+      : '');
   },
   write_config({ yaml }) {
     const { ok, errors } = validateConfigText(yaml ?? '');
@@ -106,9 +117,9 @@ function systemPrompt() {
     'примитивы, модели, сервисы, dataSources, биндинги, JSONata).',
     'Схема — источник истины по структуре; поведенческие правила и индекс примеров ниже (README пакета).',
     'Алгоритм работы:',
-    '1) list_examples, затем read_example для 2–4 примеров по механизмам задачи (таймер → 12, списки → 05, dataSource → 04, роутинг → 07); не пиши по памяти;',
-    '2) собери полный YAML-конфиг типа component;',
-    '3) validate_config, исправляй по ошибкам;',
+    '1) list_examples, затем read_example для 2–4 примеров по механизмам задачи (таймер → 12, списки → 05, dataSource → 04, роутинг → 07); каждый пример читай ОДИН раз — прочитанное остаётся в истории;',
+    '2) собери полный YAML-конфиг типа component; не добавляй dataSources, сервисы и модели, которых задача не требует;',
+    '3) validate_config; чини строго по указанным местам из ошибок, без перечитывания примеров;',
     '4) заверши строго через write_config (он принимает только валидный конфиг), затем кратко опиши, что построил.',
     'Не выдумывай поля и события, которых нет в схеме и примерах. Все тексты интерфейса — на русском.',
     '',
@@ -183,7 +194,15 @@ async function run(task) {
         try { output = toolHandlers[name]?.(args) ?? `Неизвестный инструмент: ${name}`; }
         catch (e) { output = `Ошибка инструмента: ${e.message}`; }
       }
-      messages.push({ role: 'tool', tool_call_id: call.id, content: String(output) });
+      const text = String(output);
+      if (name === 'read_example') console.log(`      → ${text.split('\n').length} строк`);
+      else if (name === 'list_examples') console.log(`      → ${text.split('\n').length} примеров`);
+      else console.log(text.split('\n').map(l => '      ' + l).join('\n'));
+      messages.push({ role: 'tool', tool_call_id: call.id, content: text });
+    }
+    if (TRACE) {
+      mkdirSync(outDir, { recursive: true });
+      writeFileSync(resolve(outDir, 'trace.json'), JSON.stringify({ model: MODEL, turn, messages }, null, 2), 'utf8');
     }
   }
 
@@ -195,7 +214,7 @@ async function run(task) {
   return 1;
 }
 
-const task = process.argv.slice(2).join(' ').trim();
+const task = process.argv.slice(2).filter(a => a !== '--trace').join(' ').trim();
 if (!task && !FAKE) {
   console.error('Использование: node tools/agent.mjs "описание приложения"');
   process.exit(2);
