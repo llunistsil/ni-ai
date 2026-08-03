@@ -6,7 +6,8 @@
 ## Как это работает
 
 `tools/agent.mjs` — один node-скрипт. Ты даёшь описание приложения, он ходит
-в LLM Proxy (формат Anthropic `/v1/messages`) с четырьмя инструментами:
+в LLM Proxy (`/chat/completions`, OpenAI-формат, история и tool calling
+на стороне клиента) с четырьмя инструментами:
 список примеров → чтение примера → валидация → запись. Модель читает 2–4
 релевантных эталона, пишет YAML, валидатор возвращает ошибки, модель чинит.
 Запись принимает только валидный конфиг — результат всегда в `out/app.yaml`.
@@ -18,8 +19,10 @@
 cd nitro3-examples && npm i
 npm run validate                      # база зелёная, ~5 сек
 
-export LLM_PROXY_TOKEN=<токен из ЛК прокси>
-# опционально: export NITRO_MODEL=<id модели из ЛК>   (default: claude-sonnet-4-5-20250929)
+export LLM_PROXY_TOKEN=<API key из ЛК прокси>
+# опционально: export NITRO_MODEL=<провайдер/модель>   (default: openai/gpt-5.4)
+# если node ругается на TLS-сертификат: NODE_EXTRA_CA_CERTS=<корп. CA>
+#   (или NODE_TLS_REJECT_UNAUTHORIZED=0 — аналог verify=False из доков прокси)
 
 npm run agent -- "<промпт из списка ниже>"
 # в консоли — трасса инструментов; результат: out/app.yaml
@@ -52,8 +55,10 @@ serve в браузере и проверяешь руками.
 - `canonical/nitro-editor.yaml` — реальный конфиг редактора, не редактировать
 - `tools/validate.mjs` — валидатор: ajv по схеме + семантика (ссылки биндингов
   и localBindings, дубликаты id)
-- `tools/agent.mjs` — агент (env: LLM_PROXY_URL, LLM_PROXY_TOKEN, NITRO_MODEL,
-  NITRO_MAX_TURNS)
+- `tools/agent.mjs` — агент, OpenAI Chat Completions через LLM Proxy
+  (env: LLM_PROXY_URL, LLM_PROXY_TOKEN, NITRO_MODEL, NITRO_MAX_TURNS,
+  NITRO_MAX_TOKENS). Gemini — другой контракт (generateContent), при
+  необходимости добавим отдельным адаптером.
 
 ## Правила (поведение, невыразимое схемой — их читает агент)
 
