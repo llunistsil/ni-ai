@@ -58,7 +58,8 @@ serve в браузере и проверяешь руками.
 - `tools/validate.mjs` — валидатор: ajv по схеме + семантика (ссылки биндингов
   и localBindings, дубликаты id, поток данных выражений: JSONata парсится,
   источники в payload/condition объявлены в triggers/context — включая
-  NitroPayload-интерполяцию "{root....}")
+  NitroPayload-интерполяцию "{root....}"; реестр событий и экшенов по типам
+  сущностей; вызовы только существующих функций JSONata)
 - `tools/agent.mjs` — агент, OpenAI Chat Completions через LLM Proxy
   (env: LLM_PROXY_URL, LLM_PROXY_TOKEN, NITRO_MODEL, NITRO_MAX_TURNS,
   NITRO_MAX_TOKENS). Gemini — другой контракт (generateContent), при
@@ -69,8 +70,8 @@ serve в браузере и проверяешь руками.
 1. `set` на модели — всегда полная замена состояния, не merge. Текущее состояние
    читается через `context`, новый объект собирается целиком.
 2. Подписка на выходы любой сущности единообразна: `triggers: {id: [имяСобытия]}`.
-   Имена событий и экшенов в схеме не описаны — источник: примеры
-   (click, state, text, success/failure/inProgress, urlState, tick/isStarted, mfOutput).
+   Имена событий и экшенов проверяет валидатор по реестру — при добавлении
+   сущностей расширяй EVENTS/ACTIONS в tools/validate.mjs.
    Данные события бери из самого события (`tick` уже несёт `timePassed`) —
    не дублируй их в модели.
 3. Динамические списки: JSONata-map в массив `componentPresenter`-ов через
@@ -87,3 +88,6 @@ serve в браузере и проверяешь руками.
 6. Output-пропсы компонентов: `direction: output/bidirectional` объявляемы
    (встречаются в каноне), но механики передачи наверх нет — не использовать.
    Интерактив, влияющий на родителя, держать в родительской области видимости.
+7. textfield отдаёт СТРОКУ: для арифметики — $number с guard'ом пустой строки
+   и $replace запятой на точку. Токены Taiga — из палитры
+   (positive/negative/neutral, secondary-destructive…), не success/error.
