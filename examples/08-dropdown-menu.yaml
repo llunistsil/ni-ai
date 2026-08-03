@@ -1,0 +1,76 @@
+# Что показывает: выпадающее меню с выбором элемента.
+# Механизмы: dropdown (trigger + content), menu / menuGroup,
+# meta на кнопках и чтение <groupId>.click.meta в биндинге,
+# закрытие дропдауна через setInputs {open: false}.
+type: component
+root:
+  type: panel
+  style:
+    align-items: center
+    flex-direction: column
+    gap: 1.5rem
+    padding: 2rem
+  items:
+    - type: text
+      id: selectedText
+      style:
+        font: var(--tui-font-heading-h3)
+      text: Ничего не выбрано
+    - type: dropdown
+      id: fruitDropdown
+      trigger:
+        type: button
+        appearance: outline
+        size: m
+        iconEnd: "@tui.fancy.small.chevron-down"
+        content:
+          type: text
+          text: Выбрать фрукт
+      content:
+        type: menu
+        size: m
+        groups:
+          - type: menuGroup
+            id: fruitsGroup
+            label: Фрукты
+            items:
+              - type: button
+                meta:
+                  code: apple
+                  name: Яблоко
+                content:
+                  type: text
+                  text: Яблоко
+              - type: button
+                meta:
+                  code: pear
+                  name: Груша
+                content:
+                  type: text
+                  text: Груша
+              - type: button
+                meta:
+                  code: fig
+                  name: Инжир
+                content:
+                  type: text
+                  text: Инжир
+bindings:
+  - triggers:
+      fruitsGroup:
+        - click
+    condition:
+      type: JSONata
+      expression: $boolean(fruitsGroup.click.meta)
+    actions:
+      - target: selectedText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": "Выбрано: " & fruitsGroup.click.meta.name}'
+      - target: fruitDropdown
+        action: setInputs
+        payload:
+          type: NitroPayload
+          value:
+            open: false

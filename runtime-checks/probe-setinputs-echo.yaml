@@ -1,0 +1,63 @@
+# ПРОБА (не эталон): эмитит ли textfield событие text при программном setInputs.
+# Действие: НЕ трогая поле, нажать кнопку. Если счётчик вырос — setInputs эмитит
+# событие (важно для петель/каскадов). Результат фиксируем правилом в README.
+type: component
+root:
+  type: panel
+  style:
+    flex-direction: column
+    gap: 1rem
+    padding: 2rem
+  items:
+    - type: textfield
+      id: fieldA
+      label: Поле (не трогать при пробе)
+      size: m
+    - type: button
+      id: setButton
+      size: m
+      content:
+        type: text
+        text: Установить текст программно
+    - type: text
+      text: "Событий text: 0"
+      localBindings:
+        inputs:
+          text:
+            triggers:
+              evtModel:
+                - state
+            value:
+              type: JSONata
+              expression: '"Событий text: " & $string(evtModel.state.count)'
+models:
+  evtModel:
+    schema:
+      type: object
+      properties:
+        count:
+          type: number
+          default: 0
+bindings:
+  - triggers:
+      setButton:
+        - click
+    actions:
+      - target: fieldA
+        action: setInputs
+        payload:
+          type: NitroPayload
+          value:
+            text: программно
+  - triggers:
+      fieldA:
+        - text
+    context:
+      evtModel:
+        - state
+    actions:
+      - target: evtModel
+        action: set
+        payload:
+          type: JSONata
+          expression: '{"count": evtModel.state.count + 1}'

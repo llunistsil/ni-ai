@@ -1,0 +1,112 @@
+# Что показывает: переиспользуемый компонент с input-пропсами.
+# Механизмы: properties (direction: input), статичная передача через
+# componentPresenter.inputs, динамическое обновление пропа через setInputs
+# на id презентера, триггер COMPONENT внутри дочернего компонента.
+type: component
+root:
+  type: panel
+  style:
+    flex-direction: column
+    gap: 1.5rem
+    padding: 2rem
+  items:
+    - type: text
+      style:
+        font: var(--tui-font-heading-h2)
+      text: Карточки сотрудников
+    - type: panel
+      style:
+        gap: 1rem
+      items:
+        # Статичные inputs — задаются прямо в конфиге.
+        - type: componentPresenter
+          componentId: personCard
+          inputs:
+            person:
+              name: Анна
+              role: Аналитик
+        # Динамический презентер — проп обновляется биндингом по id презентера.
+        - type: componentPresenter
+          id: dynamicCard
+          componentId: personCard
+          inputs:
+            person:
+              name: "—"
+              role: "—"
+    - type: button
+      id: fillButton
+      size: m
+      content:
+        type: text
+        text: Заполнить вторую карточку
+components:
+  personCard:
+    type: component
+    id: COMPONENT
+    properties:
+      person:
+        direction: input
+    root:
+      type: container
+      style:
+        border-radius: var(--tui-radius-l)
+        box-shadow: var(--tui-shadow-small)
+        min-inline-size: 220px
+        padding: 1rem
+      content:
+        type: panel
+        style:
+          align-items: center
+          gap: 1rem
+        items:
+          - type: avatar
+            shape: circle
+            size: m
+            content:
+              type: text
+              id: initialsText
+          - type: panel
+            style:
+              flex-direction: column
+            items:
+              - type: text
+                id: nameText
+                style:
+                  font: var(--tui-font-text-l)
+              - type: text
+                id: roleText
+                style:
+                  color: var(--tui-text-secondary)
+    bindings:
+      - triggers:
+          COMPONENT:
+            - person
+        actions:
+          - target: nameText
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"text": COMPONENT.person.name}'
+          - target: roleText
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"text": COMPONENT.person.role}'
+          - target: initialsText
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"text": $uppercase($substring(COMPONENT.person.name, 0, 1))}'
+bindings:
+  - triggers:
+      fillButton:
+        - click
+    actions:
+      - target: dynamicCard
+        action: setInputs
+        payload:
+          type: NitroPayload
+          value:
+            person:
+              name: Дмитрий
+              role: Разработчик

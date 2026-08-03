@@ -1,0 +1,112 @@
+# Что показывает: маршрутизация внутри приложения.
+# Механизмы: router (defaultRoute + routes), link mode: navigate,
+# сервис navigation (action navigate с commands, событие urlState),
+# сервис browserTab (заголовок вкладки).
+type: component
+root:
+  type: panel
+  style:
+    blockSize: 100%
+    display: grid
+    gridTemplateRows: auto 1fr
+  items:
+    - type: panel
+      style:
+        align-items: center
+        borderBottom: 1px solid var(--tui-border-normal)
+        gap: 1rem
+        padding: 0.75rem 1.5rem
+      items:
+        - type: link
+          url: /
+          mode: navigate
+          content:
+            type: button
+            appearance: secondary
+            size: s
+            content:
+              type: text
+              text: Главная
+        - type: link
+          url: /about
+          mode: navigate
+          content:
+            type: button
+            appearance: secondary
+            size: s
+            content:
+              type: text
+              text: О приложении
+        - type: button
+          id: gotoContactsButton
+          appearance: secondary
+          size: s
+          content:
+            type: text
+            text: Контакты (через сервис)
+        - type: text
+          id: currentPathText
+          style:
+            color: var(--tui-text-secondary)
+            font: var(--tui-font-text-s)
+    - type: router
+      id: mainRouter
+      defaultRoute:
+        content:
+          type: panel
+          style:
+            padding: 2rem
+          items:
+            - type: text
+              style:
+                font: var(--tui-font-heading-h2)
+              text: Главная страница
+      routes:
+        - path: about
+          content:
+            type: panel
+            style:
+              padding: 2rem
+            items:
+              - type: text
+                style:
+                  font: var(--tui-font-heading-h2)
+                text: О приложении
+        - path: contacts
+          content:
+            type: panel
+            style:
+              padding: 2rem
+            items:
+              - type: text
+                style:
+                  font: var(--tui-font-heading-h2)
+                text: Контакты
+services:
+  - type: navigation
+    id: nav
+  - type: browserTab
+    title: Демо роутинга
+bindings:
+  # Императивная навигация через сервис.
+  - triggers:
+      gotoContactsButton:
+        - click
+    actions:
+      - target: nav
+        action: navigate
+        payload:
+          type: NitroPayload
+          value:
+            commands:
+              - contacts
+  # Реакция на смену URL.
+  - triggers:
+      nav:
+        - urlState
+    actions:
+      - target: currentPathText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": "Путь: /" & $join(nav.urlState.pathSegments, "/")}'

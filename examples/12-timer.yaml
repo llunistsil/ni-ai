@@ -1,0 +1,105 @@
+# Что показывает: сервис timer и смешение глобальных биндингов с локальными.
+# Механизмы: сервис timer (mode manual — стартует экшеном, interval, timerType),
+# экшены start/stop без payload, события tick {timePassed} и isStarted,
+# localBindings.inputs на события сервиса (elapsed-текст, disabled кнопок).
+type: component
+root:
+  type: panel
+  style:
+    align-items: center
+    flex-direction: column
+    gap: 1.5rem
+    padding: 2rem
+  items:
+    - type: text
+      style:
+        font: var(--tui-font-heading-h1)
+      text: 0 с
+      localBindings:
+        inputs:
+          text:
+            triggers:
+              clock:
+                - tick
+            value:
+              type: JSONata
+              expression: '$string($floor(clock.tick.timePassed / 1000)) & " с"'
+    - type: badge
+      size: m
+      content:
+        type: text
+        text: Остановлен
+        localBindings:
+          inputs:
+            text:
+              triggers:
+                clock:
+                  - isStarted
+              value:
+                type: JSONata
+                expression: 'clock.isStarted ? "Идёт" : "Остановлен"'
+      localBindings:
+        inputs:
+          appearance:
+            triggers:
+              clock:
+                - isStarted
+            value:
+              type: JSONata
+              expression: 'clock.isStarted ? "positive" : "neutral"'
+    - type: panel
+      style:
+        gap: 1rem
+      items:
+        - type: button
+          id: startButton
+          size: m
+          content:
+            type: text
+            text: Старт
+          localBindings:
+            inputs:
+              disabled:
+                triggers:
+                  clock:
+                    - isStarted
+                value:
+                  type: JSONata
+                  expression: clock.isStarted
+        - type: button
+          id: stopButton
+          appearance: secondary
+          size: m
+          disabled: true
+          content:
+            type: text
+            text: Стоп
+          localBindings:
+            inputs:
+              disabled:
+                triggers:
+                  clock:
+                    - isStarted
+                value:
+                  type: JSONata
+                  expression: $not(clock.isStarted)
+services:
+  - type: timer
+    id: clock
+    mode: manual
+    interval: 1000
+    timerType: normal
+bindings:
+  # Экшены сервиса без payload.
+  - triggers:
+      startButton:
+        - click
+    actions:
+      - target: clock
+        action: start
+  - triggers:
+      stopButton:
+        - click
+    actions:
+      - target: clock
+        action: stop

@@ -1,0 +1,97 @@
+# Что показывает: локальные биндинги — декларация связей прямо на примитиве.
+# Механизмы:
+#   - localBindings.inputs: value возвращает САМО значение инпута
+#     (обёртку {имяИнпута: значение} делает KeyValue-трансформер платформы);
+#   - localBindings.outputs: реакция на собственное событие, actions —
+#     один объект или массив; собственные данные события доступны
+#     по имени события на верхнем уровне (Spread по selfId);
+#   - примитиву с localBindings не нужен id — платформа генерирует @local-id.
+# ВАЖНО: инкремент намеренно оставлен глобальным биндингом — ему нужен context,
+# а связка outputs/actions-блоков с context/condition — известный баг
+# (выражение считается по неполному DTO). Статус фикса — см. README.
+# Блок localBindings.actions (вызов именованного экшена на себе) — пример
+# добавим на кейсе с МФ или дропдауном после подтверждения паттерна output-пропсов.
+type: component
+root:
+  type: panel
+  style:
+    align-items: center
+    flex-direction: column
+    gap: 1.5rem
+    padding: 2rem
+  items:
+    - type: text
+      style:
+        font: var(--tui-font-heading-h2)
+      text: "Счёт: 0"
+      localBindings:
+        inputs:
+          text:
+            triggers:
+              counter:
+                - state
+            value:
+              type: JSONata
+              expression: '"Счёт: " & $string(counter.state.count)'
+    - type: panel
+      style:
+        gap: 1rem
+      items:
+        - type: button
+          id: incButton
+          size: m
+          content:
+            type: text
+            text: "+1"
+        - type: button
+          appearance: secondary
+          size: m
+          content:
+            type: text
+            text: Сброс
+          localBindings:
+            outputs:
+              click:
+                actions:
+                  target: counter
+                  action: set
+                  payload:
+                    type: NitroPayload
+                    value:
+                      count: 0
+    - type: text
+      visible: false
+      style:
+        color: var(--tui-text-positive)
+      text: Пять и больше — отлично!
+      localBindings:
+        inputs:
+          visible:
+            triggers:
+              counter:
+                - state
+            value:
+              type: JSONata
+              expression: counter.state.count >= 5
+models:
+  counter:
+    schema:
+      type: object
+      properties:
+        count:
+          type: number
+          default: 0
+bindings:
+  # Инкремент: глобальный биндинг, т.к. нужен context (см. шапку файла).
+  - triggers:
+      incButton:
+        - click
+    context:
+      counter:
+        - state
+    actions:
+      - target: counter
+        action: set
+        payload:
+          type: JSONata
+          expression: '{"count": counter.state.count + 1}'

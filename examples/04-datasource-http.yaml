@@ -1,0 +1,115 @@
+# Что показывает: полный жизненный цикл HTTP-источника данных.
+# Механизмы: dataSources (type: http), action send с payload,
+# события success / failure / inProgress, loader (show), alerts,
+# ветвление по статусу через condition на уровне action.
+# URL мокается интерсептом в nitro3:serve или секцией mocks (когда появится).
+type: component
+root:
+  type: panel
+  style:
+    align-items: center
+    flex-direction: column
+    gap: 1.5rem
+    padding: 2rem
+  items:
+    - type: button
+      id: loadButton
+      size: m
+      content:
+        type: text
+        text: Загрузить профиль
+    - type: loader
+      id: profileLoader
+      size: l
+      content:
+        type: panel
+        style:
+          align-items: center
+          flex-direction: column
+          gap: 0.5rem
+        items:
+          - type: text
+            id: profileNameText
+            style:
+              font: var(--tui-font-heading-h3)
+            text: —
+          - type: text
+            id: profileEmailText
+            style:
+              color: var(--tui-text-secondary)
+            text: —
+services:
+  - type: alerts
+dataSources:
+  profileDS:
+    type: http
+    url: /demo/api/profile/get
+    method: POST
+    credentials: same-origin
+bindings:
+  - triggers:
+      loadButton:
+        - click
+    actions:
+      - target: profileDS
+        action: send
+        payload:
+          type: NitroPayload
+          value:
+            id: demo-user
+  - triggers:
+      profileDS:
+        - inProgress
+    actions:
+      - target: profileLoader
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"show": profileDS.inProgress}'
+  - triggers:
+      profileDS:
+        - success
+    actions:
+      - target: profileNameText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": profileDS.success.body.name}'
+      - target: profileEmailText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": profileDS.success.body.email}'
+  # Ошибки: разные алерты по статусу — condition на уровне отдельного action.
+  - triggers:
+      profileDS:
+        - failure
+    actions:
+      - target: alerts
+        action: show
+        condition:
+          type: JSONata
+          expression: profileDS.failure.status = 400 or profileDS.failure.status = 422
+        payload:
+          type: JSONata
+          expression: |
+            {
+              "header": profileDS.failure.body.errorMessage,
+              "content": $string(profileDS.failure.body.errorDetails),
+              "appearance": "negative",
+              "autoClose": 0
+            }
+      - target: alerts
+        action: show
+        condition:
+          type: JSONata
+          expression: profileDS.failure.status != 400 and profileDS.failure.status != 422
+        payload:
+          type: JSONata
+          expression: |
+            {
+              "header": "Ошибка загрузки профиля",
+              "content": $string(profileDS.failure.status),
+              "appearance": "negative",
+              "autoClose": 0
+            }

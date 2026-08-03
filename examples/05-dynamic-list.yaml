@@ -1,0 +1,120 @@
+# Что показывает: динамический список карточек из состояния модели.
+# Механизмы: генерация items через JSONata-map в componentPresenter'ы
+# (канонический паттерн для списков), дочерний компонент с input-пропом,
+# триггер COMPONENT в дочернем компоненте, $append для добавления в массив.
+type: component
+root:
+  type: panel
+  style:
+    flex-direction: column
+    gap: 1.5rem
+    padding: 2rem
+  items:
+    - type: text
+      style:
+        font: var(--tui-font-heading-h2)
+      text: Список задач
+    - type: panel
+      style:
+        align-items: center
+        gap: 1rem
+      items:
+        - type: textfield
+          id: newTaskInput
+          label: Новая задача
+          size: m
+        - type: button
+          id: addButton
+          size: m
+          iconStart: "@tui.fancy.medium.plus"
+    - type: panel
+      id: tasksPanel
+      style:
+        flex-direction: column
+        gap: 0.75rem
+components:
+  taskCard:
+    type: component
+    id: COMPONENT
+    properties:
+      task:
+        direction: input
+    root:
+      type: container
+      style:
+        background: var(--tui-background-neutral-1)
+        border-radius: var(--tui-radius-m)
+        padding: 0.75rem 1rem
+      content:
+        type: panel
+        style:
+          align-items: center
+          gap: 0.75rem
+        items:
+          - type: icon
+            icon: "@tui.fancy.small.check"
+          - type: text
+            id: titleText
+    bindings:
+      - triggers:
+          COMPONENT:
+            - task
+        actions:
+          - target: titleText
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"text": COMPONENT.task.title}'
+models:
+  tasks:
+    schema:
+      type: object
+      properties:
+        items:
+          type: array
+          default: []
+bindings:
+  # Добавление: полная замена состояния с $append.
+  - triggers:
+      addButton:
+        - click
+    context:
+      newTaskInput:
+        - text
+      tasks:
+        - state
+    condition:
+      type: JSONata
+      expression: $boolean(newTaskInput.text)
+    actions:
+      - target: tasks
+        action: set
+        payload:
+          type: JSONata
+          expression: '{"items": $append(tasks.state.items, [{"title": newTaskInput.text}])}'
+      - target: newTaskInput
+        action: setInputs
+        payload:
+          type: NitroPayload
+          value:
+            text: ""
+  # Рендер: массив состояния -> массив componentPresenter'ов.
+  # Обёртка в [ ] обязательна: JSONata схлопывает массив из одного элемента.
+  - triggers:
+      tasks:
+        - state
+    actions:
+      - target: tasksPanel
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: |
+            {
+              "items": [tasks.state.items.
+                {
+                  "type": "componentPresenter",
+                  "componentId": "taskCard",
+                  "inputs": {"task": $}
+                }
+              ]
+            }

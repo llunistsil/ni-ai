@@ -1,0 +1,1666 @@
+# Канонический конфиг: приложение Nitro Editor (as is, без изменений).
+# Роль в пакете: (1) полный реальный пример приложения, (2) тест валидатора.
+type: component
+root:
+  type: router
+  id: editorRouter
+  defaultRoute:
+    content:
+      type: componentPresenter
+      componentId: appListComponent
+  routes:
+    - path: apps/new
+      content:
+        type: componentPresenter
+        componentId: newAppComponent
+    - path: apps/:appId
+      content:
+        type: componentPresenter
+        id: appEditor
+        componentId: appEditorComponent
+components:
+  appEditorComponent:
+    type: component
+    id: COMPONENT
+    properties:
+      appId:
+        direction: input
+    root:
+      type: router
+      defaultRoute:
+        content:
+          type: componentPresenter
+          id: appConfigEditorPresenter
+          componentId: appConfigEditor
+      routes:
+        - path: edit
+          content:
+            type: componentPresenter
+            id: appMetaEditorPresenter
+            componentId: appMetaEditor
+        - path: gallery
+          content:
+            type: componentPresenter
+            id: appGalleryEditorPresenter
+            componentId: appGalleryEditor
+        - path: preview
+          content:
+            type: componentPresenter
+            id: appPreviewerPresenter
+            componentId: appPreviewer
+    components:
+      appConfigEditor:
+        type: component
+        id: COMPONENT
+        properties:
+          appId:
+            direction: input
+        root:
+          type: panel
+          style:
+            blockSize: 100%
+            display: grid
+            gridTemplateRows: auto 1fr
+          items:
+            - type: container
+              style:
+                background: var(--tui-background-base-alt)
+                block-size: var(--tui-height-l)
+                borderBottom: 1px solid var(--tui-border-normal)
+              content:
+                type: panel
+                style:
+                  align-items: center
+                  block-size: 100%
+                  gap: 1rem
+                classes: tui-container tui-container-adaptive
+                items:
+                  - type: link
+                    url: /
+                    mode: navigate
+                    content:
+                      type: button
+                      appearance: secondary
+                      size: m
+                      iconStart: "@tui.service.back-ios-alt"
+                  - type: panel
+                    style:
+                      align-items: center
+                      flex: 1 0 auto
+                      gap: 1rem
+                    items:
+                      - type: text
+                        id: appNameText
+                        style:
+                          font: var(--tui-font-heading-h4)
+                          margin-right: 1rem
+                      - type: link
+                        id: editMetaLink
+                        mode: navigate
+                        content:
+                          type: button
+                          appearance: secondary
+                          size: m
+                          iconStart: "@tui.fancy.medium.pencil"
+                      - type: link
+                        id: editGalleryLink
+                        mode: navigate
+                        content:
+                          type: button
+                          appearance: secondary
+                          size: m
+                          iconStart: "@tui.pragmatic.medium.image"
+                      - type: dropdown
+                        trigger:
+                          type: button
+                          appearance: secondary
+                          size: m
+                          iconStart: "@tui.fancy.small.arrow-out-top-right"
+                        content:
+                          type: menu
+                          size: m
+                          groups:
+                            - type: menuGroup
+                              id: selectorsPanel
+                              label: Доступные ссылки
+                  - type: panel
+                    style:
+                      gap: 1rem
+                    items:
+                      - type: button
+                        id: releaseButton
+                        appearance: secondary
+                        size: m
+                        content:
+                          type: text
+                          text: Опубликовать
+                        visible: false
+                      - type: dropdown
+                        id: versionsDropdown
+                        trigger:
+                          type: button
+                          appearance: outline
+                          size: m
+                          content:
+                            type: panel
+                            style:
+                              flex-direction: column
+                            items:
+                              - type: panel
+                                style:
+                                  align-items: center
+                                  gap: 0.5rem
+                                items:
+                                  - type: badge
+                                    id: currentVersionStatusBadge
+                                    size: s
+                                    content:
+                                      type: text
+                                      id: currentVersionStatusText
+                                  - type: text
+                                    id: currentVersionText
+                                    style:
+                                      color: var(--tui-text-primary)
+                                      font-weight: bold
+                              - type: text
+                                id: currentVersionUpdatedAtText
+                                style:
+                                  color: var(--tui-text-secondary)
+                                  font: var(--tui-font-text-xs)
+                        content:
+                          type: menu
+                          size: l
+                          groups:
+                            - type: menuGroup
+                              id: versionsPanel
+                              label: Версии
+                      - type: link
+                        id: previewLink
+                        openIn: newTab
+                        content:
+                          type: button
+                          appearance: secondary
+                          size: m
+                          iconStart: "@tui.fancy.medium.eye"
+                      - type: button
+                        id: saveButton
+                        size: m
+                        content:
+                          type: text
+                          text: Сохранить
+            - type: panel
+              style:
+                blockSize: 100%
+                display: grid
+                gridTemplateColumns: 5fr 3fr
+                minBlockSize: "0"
+              items:
+                - type: router
+                  id: appPresenterRouter
+                  style:
+                    minInlineSize: "0"
+                    overflow: scroll
+                  defaultRoute:
+                    content:
+                      type: container
+                      id: appPresenter
+                      style:
+                        blockSize: 100%
+                    isolate: true
+                - type: microfrontend
+                  id: appEditor
+                  url: https://twork-microfrontends-prod.cdn-tinkoff.ru/nitro-yaml-editor/1.1.0/index.js
+                  initialConfig:
+                    debounceTime: 1000
+                    monacoEditorOptions: {}
+                    monacoYamlOptions: {}
+                    schema: https://s3-msk.tinkoff.ru/twork-nitro-front-public/nitro3/configSchema.json
+                    yamlParsing:
+                      sortKeys: https://s3-msk.tinkoff.ru/twork-nitro-front-public/nitro3/sortKeys.json
+        models:
+          appModel:
+            schema:
+              type: object
+              properties:
+                config:
+                  type: object
+          appVersionModel:
+            schema:
+              type: object
+              properties:
+                releasedAt:
+                  type: string
+                status:
+                  type: string
+                updatedAt:
+                  type: string
+                version:
+                  type: number
+          prevAppVersionModel:
+            schema:
+              type: object
+              properties:
+                releasedAt:
+                  type: string
+                status:
+                  type: string
+                updatedAt:
+                  type: string
+                version:
+                  type: number
+        services:
+          - type: alerts
+        dataSources:
+          appConfigDS:
+            type: http
+            url: /nitro/api/v1/application/configuration/version/get
+            method: POST
+            credentials: same-origin
+          appMetadataDS:
+            type: http
+            url: /nitro/api/v1/application/get-by-id
+            method: POST
+            credentials: same-origin
+          appVersionsDS:
+            type: http
+            url: /nitro/api/v1/application/configuration/version/get-list
+            method: POST
+            credentials: same-origin
+          releaseConfigDS:
+            type: http
+            url: /nitro/api/v1/application/configuration/release
+            method: POST
+            credentials: same-origin
+          saveConfigDS:
+            type: http
+            url: /nitro/api/v1/application/configuration/save
+            method: POST
+            credentials: same-origin
+        bindings:
+          - triggers:
+              versionsPanel:
+                - click
+            condition:
+              type: JSONata
+              expression: $boolean(versionsPanel.click.meta)
+            actions:
+              - target: appVersionModel
+                action: set
+                payload:
+                  type: JSONata
+                  expression: versionsPanel.click.meta
+              - target: versionsDropdown
+                action: setInputs
+                payload:
+                  type: NitroPayload
+                  value:
+                    open: false
+          - triggers:
+              appVersionModel:
+                - state
+            context:
+              COMPONENT:
+                - appId
+              prevAppVersionModel:
+                - state
+            actions:
+              - target: releaseButton
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "visible": appVersionModel.state.status = "Draft"
+                    }
+              - target: currentVersionStatusBadge
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "appearance": appVersionModel.state.status = 'Draft' ? null : 'positive'
+                    }
+              - target: currentVersionStatusText
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "text": appVersionModel.state.status
+                    }
+              - target: currentVersionText
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "text": "v" & appVersionModel.state.version
+                    }
+              - target: currentVersionUpdatedAtText
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "text": $fromMillis($toMillis(appVersionModel.state.releasedAt ?? appVersionModel.state.updatedAt), "[H01]:[m01] [D01].[M01].[Y0001]", "+0300")
+                    }
+              - target: appVersionsDS
+                action: send
+                condition:
+                  type: JSONata
+                  expression: |
+                    (prevAppVersionModel.state.status = 'Release' and appVersionModel.state.status = 'Draft') 
+                    or 
+                    (prevAppVersionModel.state.status = 'Draft' and appVersionModel.state.status = 'Release')
+                payload:
+                  type: JSONata
+                  expression: '{"applicationId": COMPONENT.appId}'
+              - target: appConfigDS
+                action: send
+                condition:
+                  type: JSONata
+                  expression: |
+                    $boolean(prevAppVersionModel.state.version) and prevAppVersionModel.state.version != appVersionModel.state.version
+                payload:
+                  type: JSONata
+                  expression: '{"applicationId": COMPONENT.appId, "version": appVersionModel.state.version}'
+              - target: prevAppVersionModel
+                action: set
+                payload:
+                  type: JSONata
+                  expression: appVersionModel.state
+          - triggers:
+              releaseButton:
+                - click
+            context:
+              COMPONENT:
+                - appId
+            actions:
+              - target: releaseConfigDS
+                action: send
+                payload:
+                  type: NitroPayload
+                  value:
+                    applicationId: "{COMPONENT.appId}"
+          - triggers:
+              saveButton:
+                - click
+            context:
+              appModel:
+                - state
+              COMPONENT:
+                - appId
+            actions:
+              - target: saveConfigDS
+                action: send
+                payload:
+                  type: NitroPayload
+                  value:
+                    applicationId: "{COMPONENT.appId}"
+                    configuration: "{appModel.state.config}"
+          - triggers:
+              saveConfigDS:
+                - success
+            actions:
+              - target: appVersionModel
+                action: set
+                payload:
+                  type: JSONata
+                  expression: saveConfigDS.success.body
+              - target: alerts
+                action: show
+                payload:
+                  type: JSONata
+                  expression: '{"header": "Сохранено", "appearance": "positive"}'
+          - triggers:
+              saveConfigDS:
+                - failure
+            actions:
+              - target: alerts
+                action: show
+                condition:
+                  type: JSONata
+                  expression: saveConfigDS.failure.status = 400 or saveConfigDS.failure.status = 422
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "header": saveConfigDS.failure.body.errorMessage,
+                      "content": $string(saveConfigDS.failure.body.errorDetails),
+                      "appearance": "negative",
+                      "autoClose": 0
+                    }
+              - target: alerts
+                action: show
+                condition:
+                  type: JSONata
+                  expression: saveConfigDS.failure.status != 400 and saveConfigDS.failure.status != 422
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "header": "Ошибка сохранения",
+                      "content": $string(saveConfigDS.failure.status),
+                      "appearance": "negative",
+                      "autoClose": 0
+                    }
+          - triggers:
+              releaseConfigDS:
+                - success
+            context:
+              COMPONENT:
+                - appId
+            actions:
+              - target: appVersionModel
+                action: set
+                payload:
+                  type: JSONata
+                  expression: releaseConfigDS.success.body
+              - target: alerts
+                action: show
+                payload:
+                  type: JSONata
+                  expression: '{"header": "Опубликовано", "appearance": "positive"}'
+          - triggers:
+              releaseConfigDS:
+                - failure
+            actions:
+              - target: alerts
+                action: show
+                condition:
+                  type: JSONata
+                  expression: releaseConfigDS.failure.status = 400 or releaseConfigDS.failure.status = 422
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "header": releaseConfigDS.failure.body.errorMessage,
+                      "content": $string(releaseConfigDS.failure.body.errorDetails),
+                      "appearance": "negative",
+                      "autoClose": 0
+                    }
+              - target: alerts
+                action: show
+                condition:
+                  type: JSONata
+                  expression: releaseConfigDS.failure.status != 400 and releaseConfigDS.failure.status != 422
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "header": "Ошибка публикации",
+                      "content": $string(releaseConfigDS.failure.status),
+                      "appearance": "negative",
+                      "autoClose": 0
+                    }
+          - triggers:
+              appEditor:
+                - mfOutput
+            actions:
+              - target: appModel
+                action: set
+                condition:
+                  type: JSONata
+                  expression: $boolean(appEditor.mfOutput.json)
+                payload:
+                  type: JSONata
+                  expression: '{"config": appEditor.mfOutput.json}'
+          - triggers:
+              appMetadataDS:
+                - success
+            actions:
+              - target: appNameText
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"text": appMetadataDS.success.body.name}'
+          - triggers:
+              appMetadataDS:
+                - success
+            actions:
+              - target: selectorsPanel
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "items": [
+                        appMetadataDS.success.body.selectors.
+                        {
+                          "type": "link",
+                          "url": "https://" & $.host & $.path,
+                          "openIn": "newTab",
+                          "content": {
+                            "type": "text",
+                            "text": "https://" & $.host & $.path
+                          }
+                        }
+                      ]
+                    }
+          - triggers:
+              appVersionsDS:
+                - success
+            actions:
+              - target: versionsPanel
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "items": [
+                        appVersionsDS.success.body.list.
+                        {
+                          "type": "button",
+                          "meta": $,
+                          "content": {
+                            "type": "panel",
+                            "style": {
+                              "flex-direction": "column"
+                            },
+                            "items": [
+                              {
+                                "type": "panel",
+                                "style": {
+                                  "gap": "0.5rem",
+                                  "padding-right": "1rem",
+                                  "align-items": "center"
+                                },
+                                "items": [
+                                  {
+                                    "type": "badge",
+                                    "appearance": $.status = 'Draft' ? null : 'positive',
+                                    "content": {
+                                      "type": "text",
+                                      "text": $.status
+                                    }
+                                  },
+                                  {
+                                    "type": "text",
+                                    "text": "v" & $.version,
+                                    "style": {
+                                      "font-weight": "bold"
+                                    }
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "text": $fromMillis($toMillis($.releasedAt ?? $.updatedAt), "[H01]:[m01] [D01].[M01].[Y0001]", "+0300"),
+                                "style": {
+                                  "color": "var(--tui-text-secondary)",
+                                  "font": "var(--tui-font-text-xs)",
+                                  "margin-left": "0.3rem"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+          - triggers:
+              appConfigDS:
+                - success
+            actions:
+              - target: appEditor
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: "{\"mfInput\": {'json': appConfigDS.success.body.configuration}}"
+              - target: prevAppVersionModel
+                action: set
+                payload:
+                  type: JSONata
+                  expression: saveConfigDS.success.body
+              - target: appVersionModel
+                action: set
+                payload:
+                  type: JSONata
+                  expression: appConfigDS.success.body
+          - triggers:
+              appModel:
+                - state
+            actions:
+              - target: appPresenter
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"content": appModel.state.config}'
+          - triggers:
+              appMetadataDS:
+                - failure
+            actions:
+              - target: alerts
+                action: show
+                payload:
+                  type: JSONata
+                  expression: '            {              "header": "Ошибка загрузки информации о приложении",              "content": $string(appMetadataDS.failure.status),              "appearance": "negative"            }'
+          - triggers:
+              COMPONENT:
+                - appId
+            actions:
+              - target: appMetadataDS
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"id": COMPONENT.appId}'
+              - target: appConfigDS
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"applicationId": COMPONENT.appId}'
+              - target: editMetaLink
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"url": "/apps/" & COMPONENT.appId & "/edit"}'
+              - target: editGalleryLink
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"url": "/apps/" & COMPONENT.appId & "/gallery"}'
+              - target: previewLink
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"url": "/apps/" & COMPONENT.appId & "/preview"}'
+              - target: appVersionsDS
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"applicationId": COMPONENT.appId}'
+      appGalleryEditor:
+        type: component
+        id: COMPONENT
+        properties:
+          appId:
+            direction: input
+        root:
+          type: panel
+          style:
+            flex-direction: column
+            margin-top: 1rem
+          items:
+            - type: panel
+              style:
+                gap: 1rem
+                justify-content: center
+              items:
+                - type: link
+                  id: backLink_Gallery
+                  mode: navigate
+                  content:
+                    type: button
+                    appearance: secondary
+                    iconStart: "@tui.service.back-ios-alt"
+                - type: text
+                  id: appNameText
+                  style:
+                    font: var(--tui-font-heading-1)
+                  text: ...
+            - type: loader
+              id: loader
+              content:
+                type: panel
+                id: filesPanel
+                style:
+                  gap: 2rem
+                  padding: 2rem
+        components:
+          galleryItem:
+            type: component
+            id: COMPONENT
+            properties:
+              data:
+                direction: input
+            root:
+              type: container
+              style:
+                background: var(--tui-background-neutral-2)
+                border-radius: var(--tui-radius-l)
+                box-shadow: var(--tui-shadow-small)
+                height: 150px
+                padding: 1rem
+                width: 150px
+              content:
+                type: panel
+                style:
+                  align-items: center
+                  flex-direction: column
+                  gap: 0.5rem
+                  height: 100%
+                  justify-content: space-between
+                items:
+                  - type: image
+                    id: image
+                    style:
+                      height: 100%
+                      min-height: 0
+                      min-width: 0
+                      object-fit: contain
+                      width: 100%
+                  - type: text
+                    id: fileName
+                    style:
+                      height: 1.4rem
+                      overflow: hidden
+                      text-align: center
+                      text-overflow: ellipsis
+                      white-space: nowrap
+                      width: 100%
+            bindings:
+              - triggers:
+                  COMPONENT:
+                    - data
+                actions:
+                  - target: image
+                    action: setInputs
+                    payload:
+                      type: JSONata
+                      expression: '{"src": COMPONENT.data.url}'
+                  - target: fileName
+                    action: setInputs
+                    payload:
+                      type: JSONata
+                      expression: '{"text": COMPONENT.data.name}'
+        dataSources:
+          appGetMetadataDS_Galley:
+            type: http
+            url: /nitro/api/v1/application/get-by-id
+            method: POST
+            credentials: same-origin
+          appSearchAssetsDS_Galley:
+            type: http
+            url: /nitro/api/v1/application/assets/search
+            method: POST
+            credentials: same-origin
+        bindings:
+          - triggers:
+              COMPONENT:
+                - appId
+            actions:
+              - target: backLink_Gallery
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"url": "/apps/" & COMPONENT.appId}'
+              - target: appGetMetadataDS_Galley
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"id": COMPONENT.appId}'
+              - target: appSearchAssetsDS_Galley
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"applicationId": COMPONENT.appId}'
+          - triggers:
+              appGetMetadataDS_Galley:
+                - success
+            actions:
+              - target: appNameText
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"text": "Галлерея: " & appGetMetadataDS_Galley.success.body.name}'
+          - triggers:
+              appGetMetadataDS_Galley:
+                - inProgress
+              appSearchAssetsDS_Galley:
+                - inProgress
+            actions:
+              - target: loader
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"show": appGetMetadataDS_Galley.inProgress or appSearchAssetsDS_Galley.inProgress}'
+          - triggers:
+              appSearchAssetsDS_Galley:
+                - success
+            actions:
+              - target: filesPanel
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"items": [appSearchAssetsDS_Galley.success.body.items.{"type": "componentPresenter", "componentId": "galleryItem", "inputs": {"data": $}}]}'
+      appMetaEditor:
+        type: component
+        id: COMPONENT
+        properties:
+          appId:
+            direction: input
+        root:
+          type: panel
+          style:
+            alignItems: center
+            blockSize: 100%
+            display: flex
+            flex-direction: column
+            gap: 3rem
+            justifyContent: center
+          items:
+            - type: panel
+              style:
+                alignItems: center
+                font: var(--tui-font-heading-h2)
+                gap: 1rem
+              items:
+                - type: link
+                  id: backLink
+                  mode: navigate
+                  content:
+                    type: button
+                    appearance: secondary
+                    iconStart: "@tui.service.back-ios-alt"
+                - type: text
+                  text: "Приложение:"
+                - type: text
+                  id: appCodeText
+            - type: container
+              style:
+                border-radius: var(--tui-radius-l)
+                box-shadow: var(--tui-shadow-small)
+                min-inline-size: 600px
+                padding: 1.25rem
+              content:
+                type: loader
+                id: metaLoader
+                content:
+                  type: panel
+                  style:
+                    flex-direction: column
+                    gap: 1.5rem
+                  items:
+                    - type: textfield
+                      id: appNameInput
+                      label: Имя приложения
+                      style:
+                        flex: 1 0 auto
+                      size: l
+                    - type: textfield
+                      id: appFaviconInput
+                      label: URL фавиконки
+                      style:
+                        flex: 1 0 auto
+                      size: l
+                    - type: button
+                      id: saveMetaButton
+                      appearance: secondary
+                      iconStart: "@tui.fancy.medium.check"
+                      content:
+                        type: text
+                        text: Сохранить
+            - type: container
+              style:
+                border-radius: var(--tui-radius-l)
+                box-shadow: var(--tui-shadow-small)
+                min-inline-size: 600px
+                padding: 1.25rem
+              content:
+                type: loader
+                id: selectorsLoader
+                content:
+                  type: panel
+                  style:
+                    flex-direction: column
+                    gap: 1.5rem
+                  items:
+                    - type: panel
+                      style:
+                        flex-direction: column
+                        gap: 1.5rem
+                      items:
+                        - type: text
+                          style:
+                            font: var(--tui-font-heading-4)
+                          text: Селекторы
+                        - type: panel
+                          style:
+                            display: grid
+                            gap: 1rem
+                            grid-template-columns: 1fr 1fr auto auto
+                          items:
+                            - type: textfield
+                              id: newSelectorHostInput
+                              label: Хост
+                              placeholder: twork.tbank.ru
+                              size: m
+                            - type: textfield
+                              id: newSelectorPathInput
+                              label: Путь
+                              placeholder: /nitro/apps/app_code
+                              size: m
+                            - type: button
+                              id: createSelectorButton
+                              appearance: secondary
+                              size: m
+                              iconStart: "@tui.fancy.medium.plus"
+                            - type: button
+                              id: deleteSelectorButton
+                              appearance: secondary-destructive
+                              size: m
+                              iconStart: "@tui.fancy.medium.minus"
+                        - type: panel
+                          id: selectorsPanel
+                          style:
+                            flex-direction: column
+                            gap: 1rem
+            - type: panel
+              style:
+                gap: 1rem
+              items:
+                - type: textfield
+                  id: deleteAppCodeInput
+                  label: Введите код приложения
+                  size: l
+                - type: button
+                  id: deleteAppButton
+                  disabled: true
+                  appearance: primary-destructive
+                  content:
+                    type: text
+                    text: Удалить приложение
+        components:
+          selector:
+            type: component
+            id: COMPONENT
+            properties:
+              deleteRequest:
+                direction: output
+              selector:
+                direction: input
+            root:
+              type: panel
+              style:
+                align-items: center
+                font: var(--tui-font-body-l)
+              items:
+                - type: text
+                  style:
+                    color: var(--tui-text-tertiary)
+                  text: https://
+                - type: text
+                  id: host
+                - type: text
+                  id: path
+                  style:
+                    color: var(--tui-background-brand-premium)
+                - type: link
+                  id: selectorLink
+                  style:
+                    margin-left: 1rem
+                  openIn: newTab
+                  iconStart: "@tui.fancy.small.arrow-out-top-right"
+            bindings:
+              - triggers:
+                  COMPONENT:
+                    - selector
+                actions:
+                  - target: host
+                    action: setInputs
+                    payload:
+                      type: JSONata
+                      expression: '{"text": COMPONENT.selector.host}'
+                  - target: path
+                    action: setInputs
+                    payload:
+                      type: JSONata
+                      expression: '{"text": COMPONENT.selector.path}'
+                  - target: selectorLink
+                    action: setInputs
+                    payload:
+                      type: JSONata
+                      expression: '{"url": "https://" & COMPONENT.selector.host & COMPONENT.selector.path}'
+        services:
+          - type: alerts
+          - type: navigation
+            id: navigation
+        dataSources:
+          appDeleteMetadataDS:
+            type: http
+            url: /nitro/api/v1/application/delete
+            method: POST
+            credentials: same-origin
+          appGetMetadataDS:
+            type: http
+            url: /nitro/api/v1/application/get-by-id
+            method: POST
+            credentials: same-origin
+          appUpdateMetadataDS:
+            type: http
+            url: /nitro/api/v1/application/update
+            method: POST
+            credentials: same-origin
+          createSelectorDS:
+            type: http
+            url: /nitro/api/v1/application/selector/create
+            method: POST
+            credentials: same-origin
+          deleteSelectorDS:
+            type: http
+            url: /nitro/api/v1/application/selector/delete
+            method: POST
+            credentials: same-origin
+        bindings:
+          - triggers:
+              appDeleteMetadataDS:
+                - success
+            actions:
+              - target: navigation
+                action: navigate
+                payload:
+                  type: JSONata
+                  expression: '{"commands": ["apps"]}'
+          - triggers:
+              appDeleteMetadataDS:
+                - failure
+            actions:
+              - target: alerts
+                action: show
+                payload:
+                  type: JSONata
+                  expression: '{"header": appDeleteMetadataDS.failure.body.errorMessage,              "content": $string(appDeleteMetadataDS.failure.body.errorDetails),              "appearance": "negative"            , "autoClose": 0}'
+          - triggers:
+              deleteAppButton:
+                - click
+            context:
+              COMPONENT:
+                - appId
+            actions:
+              - target: appDeleteMetadataDS
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"id": COMPONENT.appId}'
+          - triggers:
+              deleteAppCodeInput:
+                - text
+            context:
+              appGetMetadataDS:
+                - success
+            actions:
+              - target: deleteAppButton
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"disabled": deleteAppCodeInput.text != appGetMetadataDS.success.body.code}'
+          - triggers:
+              COMPONENT:
+                - appId
+            actions:
+              - target: backLink
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"url": "/apps/" & COMPONENT.appId}'
+              - target: appGetMetadataDS
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"id": COMPONENT.appId}'
+          - triggers:
+              appGetMetadataDS:
+                - success
+            actions:
+              - target: appNameInput
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"text": appGetMetadataDS.success.body.name}'
+              - target: appFaviconInput
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"text": appGetMetadataDS.success.body.faviconUrl}'
+              - target: appCodeText
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"text": appGetMetadataDS.success.body.code}'
+              - target: deleteAppCodeInput
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"filler": appGetMetadataDS.success.body.code, "placeholder": appGetMetadataDS.success.body.code}'
+              - target: selectorsPanel
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"items": [appGetMetadataDS.success.body.selectors.{"type": "componentPresenter", "componentId": "selector", "inputs": {"selector": $}}]}'
+          - triggers:
+              appDeleteMetadataDS:
+                - inProgress
+              appGetMetadataDS:
+                - inProgress
+              appUpdateMetadataDS:
+                - inProgress
+              createSelectorDS:
+                - inProgress
+              deleteSelectorDS:
+                - inProgress
+            actions:
+              - target: selectorsLoader
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "show": appGetMetadataDS.inProgress or 
+                              createSelectorDS.inProgress or 
+                              deleteSelectorDS.inProgress or
+                              appDeleteMetadataDS.inProgress
+                    }
+              - target: metaLoader
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "show": appGetMetadataDS.inProgress or
+                              appUpdateMetadataDS.inProgress or
+                              appDeleteMetadataDS.inProgress
+                    }
+          - triggers:
+              saveMetaButton:
+                - click
+            context:
+              appFaviconInput:
+                - text
+              appNameInput:
+                - text
+              COMPONENT:
+                - appId
+            condition:
+              type: JSONata
+              expression: appNameInput.text
+            actions:
+              - target: appUpdateMetadataDS
+                action: send
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "id": COMPONENT.appId,
+                      "name": appNameInput.text,
+                      "faviconUrl": appFaviconInput.text
+                    }
+          - triggers:
+              appNameInput:
+                - text
+            actions:
+              - target: saveMetaButton
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"disabled": $not($boolean(appNameInput.text))}'
+          - triggers:
+              appUpdateMetadataDS:
+                - success
+            actions:
+              - target: alerts
+                action: show
+                payload:
+                  type: JSONata
+                  expression: '{"header": "Сохранено", "appearance": "positive"}'
+          - triggers:
+              appUpdateMetadataDS:
+                - failure
+            actions:
+              - target: alerts
+                action: show
+                payload:
+                  type: JSONata
+                  expression: '{"header": appUpdateMetadataDS.failure.body.errorMessage,              "content": $string(appUpdateMetadataDS.failure.body.errorDetails),              "appearance": "negative"            , "autoClose": 0}'
+          - triggers:
+              createSelectorButton:
+                - click
+            context:
+              COMPONENT:
+                - appId
+              newSelectorHostInput:
+                - text
+              newSelectorPathInput:
+                - text
+            actions:
+              - target: createSelectorDS
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"applicationId": COMPONENT.appId, "host": newSelectorHostInput.text, "path": newSelectorPathInput.text}'
+          - triggers:
+              deleteSelectorButton:
+                - click
+            context:
+              appGetMetadataDS:
+                - success
+              newSelectorHostInput:
+                - text
+              newSelectorPathInput:
+                - text
+            actions:
+              - target: deleteSelectorDS
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"id": appGetMetadataDS.success.body.selectors[host = $$.newSelectorHostInput.text and path = $$.newSelectorPathInput.text].id}'
+          - triggers:
+              createSelectorDS:
+                - success
+            context:
+              COMPONENT:
+                - appId
+            actions:
+              - target: appGetMetadataDS
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"id": COMPONENT.appId}'
+              - target: newSelectorHostInput
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"text": ""}'
+              - target: newSelectorPathInput
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"text": ""}'
+          - triggers:
+              createSelectorDS:
+                - failure
+            actions:
+              - target: alerts
+                action: show
+                payload:
+                  type: JSONata
+                  expression: '{"header": createSelectorDS.failure.body.errorMessage,              "content": $string(createSelectorDS.failure.body.errorDetails),              "appearance": "negative"            , "autoClose": 0}'
+          - triggers:
+              deleteSelectorDS:
+                - success
+            context:
+              COMPONENT:
+                - appId
+            actions:
+              - target: appGetMetadataDS
+                action: send
+                payload:
+                  type: JSONata
+                  expression: '{"id": COMPONENT.appId}'
+              - target: newSelectorHostInput
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"text": ""}'
+              - target: newSelectorPathInput
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: '{"text": ""}'
+          - triggers:
+              deleteSelectorDS:
+                - failure
+            actions:
+              - target: alerts
+                action: show
+                payload:
+                  type: JSONata
+                  expression: '{"header": deleteSelectorDS.failure.body.errorMessage,              "content": $string(deleteSelectorDS.failure.body.errorDetails),              "appearance": "negative", "autoClose": 0}'
+      appPreviewer:
+        type: component
+        id: COMPONENT
+        properties:
+          appId:
+            direction: input
+        root:
+          type: router
+          defaultRoute:
+            content:
+              type: loader
+              id: loader
+              style:
+                block-size: 100%
+                inline-size: 100%
+              size: xxl
+              content:
+                type: container
+                id: previewHost
+                style:
+                  block-size: 100%
+                  inline-size: 100%
+            isolate: true
+        services:
+          - type: alerts
+        dataSources:
+          previewDS:
+            type: http
+            url: /nitro/api/v1/application/configuration/version/preview
+            method: POST
+            credentials: same-origin
+        bindings:
+          - triggers:
+              COMPONENT:
+                - appId
+            actions:
+              - target: previewDS
+                action: send
+                payload:
+                  type: NitroPayload
+                  value:
+                    applicationId: "{COMPONENT.appId}"
+          - triggers:
+              previewDS:
+                - inProgress
+            actions:
+              - target: loader
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "show": previewDS.inProgress
+                    }
+          - triggers:
+              previewDS:
+                - failure
+            actions:
+              - target: alerts
+                action: show
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "header": previewDS.failure.body.errorMessage,
+                      "content": $string(previewDS.failure.body.errorDetails),
+                      "appearance": "negative",
+                      "autoClose": 0
+                    }
+          - triggers:
+              previewDS:
+                - success
+            actions:
+              - target: previewHost
+                action: setInputs
+                payload:
+                  type: JSONata
+                  expression: |
+                    {
+                      "content": previewDS.success.body.configuration
+                    }
+    bindings:
+      - triggers:
+          COMPONENT:
+            - appId
+        actions:
+          - target: appConfigEditorPresenter
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"appId": COMPONENT.appId}'
+      - triggers:
+          COMPONENT:
+            - appId
+        actions:
+          - target: appMetaEditorPresenter
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"appId": COMPONENT.appId}'
+      - triggers:
+          COMPONENT:
+            - appId
+        actions:
+          - target: appGalleryEditorPresenter
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"appId": COMPONENT.appId}'
+      - triggers:
+          COMPONENT:
+            - appId
+        actions:
+          - target: appPreviewerPresenter
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"appId": COMPONENT.appId}'
+  appListComponent:
+    type: component
+    root:
+      type: container
+      style:
+        align-items: center
+        display: flex
+        flex-direction: column
+        padding: 2rem
+      content:
+        type: panel
+        style:
+          flex-direction: column
+          gap: 2rem
+        items:
+          - type: panel
+            style:
+              gap: 1rem
+            items:
+              - type: text
+                style:
+                  font: var(--tui-font-heading-h1)
+                text: Приложения
+              - type: link
+                url: /apps/new
+                mode: navigate
+                content:
+                  type: button
+                  iconStart: "@tui.fancy.medium.plus"
+          - type: panel
+            id: appsContainer
+            style:
+              align-items: center
+              flex-direction: column
+              gap: 1rem
+              width: 100%
+    services:
+      - type: alerts
+    dataSources:
+      appsList:
+        type: http
+        url: /nitro/api/v1/application/get-my-list
+        mode: onLoad
+        method: POST
+        credentials: same-origin
+    bindings:
+      - triggers:
+          appsList:
+            - success
+        actions:
+          - target: appsContainer
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: |
+                {                                       
+                  "items": appsList.success.body.list^(name).
+                  {
+                    "id": $.id,
+                    "type": "link",
+                    "url": "apps/" & $.id,
+                    "mode": "navigate",
+                    "content": { 
+                      "type": "button",
+                      "appearance": "secondary",
+                      "content": {
+                          "type": "text",
+                          "text": $.name
+                      }
+                    }
+                  }
+                }
+      - triggers:
+          appsList:
+            - failure
+        actions:
+          - target: alerts
+            action: show
+            payload:
+              type: JSONata
+              expression: '            {              "header": "Ошибка загрузки списка приложений",              "content": $string(appsList.failure.status),              "appearance": "negative"            }'
+  newAppComponent:
+    type: component
+    root:
+      type: panel
+      style:
+        alignItems: center
+        blockSize: 100%
+        display: flex
+        flex-direction: column
+        gap: 3rem
+        justifyContent: center
+      items:
+        - type: text
+          style:
+            font: var(--tui-font-heading-h2)
+          text: Создание нового приложения
+        - type: container
+          style:
+            border-radius: var(--tui-radius-l)
+            box-shadow: var(--tui-shadow-small)
+            min-inline-size: 400px
+            padding: 1.25rem
+          content:
+            type: panel
+            style:
+              flex-direction: column
+              gap: 1rem
+            items:
+              - type: textfield
+                id: appNameInput
+                label: Имя приложения
+                size: l
+              - type: textfield
+                id: appCodeInput
+                label: Код приложения
+                size: l
+              - type: panel
+                style:
+                  gap: 1rem
+                  justify-content: end
+                items:
+                  - type: button
+                    id: saveButton
+                    content:
+                      type: text
+                      text: Сохранить
+                  - type: link
+                    url: /apps
+                    mode: navigate
+                    content:
+                      type: button
+                      appearance: secondary
+                      content:
+                        type: text
+                        text: Отменить
+    services:
+      - type: alerts
+      - type: navigation
+        id: navigation
+    dataSources:
+      createAppDS:
+        type: http
+        url: /nitro/api/v1/application/create
+        method: POST
+        credentials: same-origin
+    bindings:
+      - triggers:
+          createAppDS:
+            - failure
+        actions:
+          - target: alerts
+            action: show
+            payload:
+              type: JSONata
+              expression: '{"header": createAppDS.failure.body.errorMessage,              "content": $string(createAppDS.failure.body.errorDetails),              "appearance": "negative"            , "autoClose": 0}'
+      - triggers:
+          createAppDS:
+            - success
+        actions:
+          - target: navigation
+            action: navigate
+            payload:
+              type: JSONata
+              expression: '{"commands": ["apps", createAppDS.success.body.id]}'
+      - triggers:
+          saveButton:
+            - click
+        context:
+          appCodeInput:
+            - text
+          appNameInput:
+            - text
+        actions:
+          - target: createAppDS
+            action: send
+            payload:
+              type: JSONata
+              expression: '{"name": appNameInput.text, "code": appCodeInput.text}'
+      - triggers:
+          appNameInput:
+            - text
+        actions:
+          - target: appCodeInput
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"text": $replace($lowercase(appNameInput.text), " ", "-")}'
+      - triggers:
+          appCodeInput:
+            - text
+          appNameInput:
+            - text
+        actions:
+          - target: saveButton
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"disabled": $not($boolean(appNameInput.text) and $boolean(appCodeInput.text))}'
+models:
+  selectedApp:
+    schema:
+      type: object
+      properties:
+        id:
+          type:
+            - string
+            - "null"
+          default: null
+services:
+  - type: navigation
+    id: editorNav
+  - title: Nitro Editor
+    type: browserTab
+bindings:
+  - triggers:
+      editorNav:
+        - urlState
+    context:
+      selectedApp:
+        - state
+    condition:
+      type: JSONata
+      expression: editorNav.urlState.pathSegments[1] != selectedApp.state.id
+    actions:
+      - target: selectedApp
+        action: set
+        payload:
+          type: JSONata
+          expression: '{"id": editorNav.urlState.pathSegments[1]}'
+  - triggers:
+      selectedApp:
+        - state
+    condition:
+      type: JSONata
+      expression: $boolean(selectedApp.state.id)
+    actions:
+      - target: appEditor
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"appId": selectedApp.state.id}'

@@ -1,0 +1,88 @@
+# ПРОБА (не эталон): статус бага localBindings outputs + context/condition.
+# Ожидание при ЖИВОМ баге: «Локальный» счётчик не растёт, «Контрольный» растёт.
+# Если оба растут — баг починен, правило 6 в README смягчаем.
+type: component
+root:
+  type: panel
+  style:
+    flex-direction: column
+    gap: 1rem
+    padding: 2rem
+  items:
+    - type: text
+      text: "Локальный (outputs + context + condition): 0"
+      localBindings:
+        inputs:
+          text:
+            triggers:
+              localModel:
+                - state
+            value:
+              type: JSONata
+              expression: '"Локальный (outputs + context + condition): " & $string(localModel.state.count)'
+    - type: button
+      size: m
+      content:
+        type: text
+        text: "Локальный +1"
+      localBindings:
+        outputs:
+          click:
+            context:
+              localModel:
+                - state
+            condition:
+              type: JSONata
+              expression: 'true'
+            actions:
+              target: localModel
+              action: set
+              payload:
+                type: JSONata
+                expression: '{"count": localModel.state.count + 1}'
+    - type: text
+      text: "Контрольный (глобальный биндинг): 0"
+      localBindings:
+        inputs:
+          text:
+            triggers:
+              ctrlModel:
+                - state
+            value:
+              type: JSONata
+              expression: '"Контрольный (глобальный биндинг): " & $string(ctrlModel.state.count)'
+    - type: button
+      id: ctrlButton
+      appearance: secondary
+      size: m
+      content:
+        type: text
+        text: "Контрольный +1"
+models:
+  localModel:
+    schema:
+      type: object
+      properties:
+        count:
+          type: number
+          default: 0
+  ctrlModel:
+    schema:
+      type: object
+      properties:
+        count:
+          type: number
+          default: 0
+bindings:
+  - triggers:
+      ctrlButton:
+        - click
+    context:
+      ctrlModel:
+        - state
+    actions:
+      - target: ctrlModel
+        action: set
+        payload:
+          type: JSONata
+          expression: '{"count": ctrlModel.state.count + 1}'
