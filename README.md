@@ -54,7 +54,9 @@ serve в браузере и проверяешь руками.
   про какой)
 - `canonical/nitro-editor.yaml` — реальный конфиг редактора, не редактировать
 - `tools/validate.mjs` — валидатор: ajv по схеме + семантика (ссылки биндингов
-  и localBindings, дубликаты id)
+  и localBindings, дубликаты id, поток данных выражений: JSONata парсится,
+  источники в payload/condition объявлены в triggers/context — включая
+  NitroPayload-интерполяцию "{root....}")
 - `tools/agent.mjs` — агент, OpenAI Chat Completions через LLM Proxy
   (env: LLM_PROXY_URL, LLM_PROXY_TOKEN, NITRO_MODEL, NITRO_MAX_TURNS,
   NITRO_MAX_TOKENS). Gemini — другой контракт (generateContent), при
@@ -67,19 +69,19 @@ serve в браузере и проверяешь руками.
 2. Подписка на выходы любой сущности единообразна: `triggers: {id: [имяСобытия]}`.
    Имена событий и экшенов в схеме не описаны — источник: примеры
    (click, state, text, success/failure/inProgress, urlState, tick/isStarted, mfOutput).
+   Данные события бери из самого события (`tick` уже несёт `timePassed`) —
+   не дублируй их в модели.
 3. Динамические списки: JSONata-map в массив `componentPresenter`-ов через
    `setInputs {items: [...]}`. Внешние `[ ]` обязательны — JSONata схлопывает
    массив из одного элемента.
-4. Интерполяция `"{COMPONENT.appId}"` в NitroPayload работает только для значений
-   из `context`/триггеров этого биндинга.
-5. condition на уровне биндинга отсекает весь запуск; condition на уровне action —
+4. condition на уровне биндинга отсекает весь запуск; condition на уровне action —
    ветвление внутри одного биндинга (см. 04).
-6. localBindings: в `inputs` выражение `value` возвращает само значение инпута —
+5. localBindings: в `inputs` выражение `value` возвращает само значение инпута —
    обёртку `{имя: значение}` делает KeyValue-трансформер. В `outputs` собственные
    данные события доступны по имени события на верхнем уровне (Spread по selfId),
    context — по их id. Известный баг: `outputs`/`actions`-блоки с `context`/`condition`
    считаются по неполному DTO и молча не срабатывают — такую логику держать
    в глобальных биндингах.
-7. Output-пропсы компонентов: `direction: output/bidirectional` объявляемы
+6. Output-пропсы компонентов: `direction: output/bidirectional` объявляемы
    (встречаются в каноне), но механики передачи наверх нет — не использовать.
    Интерактив, влияющий на родителя, держать в родительской области видимости.

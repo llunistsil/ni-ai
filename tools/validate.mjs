@@ -4,69 +4,113 @@
  *
  * Уровень 1 — структурный: ajv по schema/configSchema.json.
  * Уровень 2 — семантический:
- *   - ссылки в глобальных bindings (triggers / context / actions[].target)
- *     и в localBindings (triggers / context / actions target) разрешаются
- *     в области видимости компонента: id примитивов в root-дереве,
- *     ключи models, ключи dataSources, id (или type) сервисов, "COMPONENT";
- *   - дубликаты id примитивов внутри области видимости одного компонента.
+ *   - ссылки биндингов (глобальных и localBindings) разрешаются в области
+ *     видимости компонента; дубликаты id;
+ *   - поток данных выражений: JSONata синтаксически парсится; источники,
+ *     используемые в payload/condition (JSONata-корни и NitroPayload-интерполяция
+ *     "{root....}"), объявлены в triggers/context этого биндинга.
  *
- * Использование: node tools/validate.mjs <файл.yaml> [ещё файлы...]
- * Код выхода 0 — все файлы валидны.
+ * Использование: node tools/validate.mjs <файл.yaml> [...]  (0 — все валидны)
  */
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as yaml from 'js-yaml';
 import { Ajv2020 } from 'ajv/dist/2020.js';
+import jsonata from 'jsonata';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const schemaPath = resolve(here, '../schema/configSchema.json');
-const schema = JSON.parse(readFileSync(schemaPath, 'utf8'));
-
+const schema = JSON.parse(readFileSync(resolve(here, '../schema/configSchema.json'), 'utf8'));
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 const validateSchema = ajv.compile(schema);
 
-// ---------- Уровень 1: структурный ----------
+// Известные латентные баги канона: даунгрейд до warning. Снять после фикса в проде.
+const KNOWN_CANON_ISSUES = [
+  { root: 'saveConfigDS', whereIncludes: 'prevAppVersionModel' },
+];
 
-/** Из шумных oneOf-ошибок оставляем самые глубокие — они почти всегда и есть причина. */
+// ---------- Уровень 1 ----------
+
 function pickDeepestErrors(errors, limit = 12) {
   const maxDepth = Math.max(...errors.map(e => e.instancePath.split('/').length));
   const deepest = errors.filter(e => e.instancePath.split('/').length >= maxDepth - 1);
-  const seen = new Set();
-  const out = [];
+  const seen = new Set(); const out = [];
   for (const e of deepest) {
     const key = `${e.instancePath}|${e.message}|${JSON.stringify(e.params)}`;
     if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(e);
+    seen.add(key); out.push(e);
     if (out.length >= limit) break;
   }
   return out;
 }
 
-// ---------- Уровень 2: семантический ----------
+// ---------- Обход дерева ----------
 
 const CHILD_KEYS = ['content', 'trigger', 'moreContent'];
 const CHILD_LIST_KEYS = ['items', 'groups'];
 
-/** Обход дерева примитивов ВНУТРИ одной области видимости.
- *  Во вложенные определения `type: component` не спускаемся — у них своя область. */
 function walkPrimitives(node, visit) {
   if (!node || typeof node !== 'object' || Array.isArray(node)) return;
   visit(node);
-  if (node.type === 'component') return; // инлайновый компонент — отдельная область
+  if (node.type === 'component') return;
   for (const key of CHILD_KEYS) walkPrimitives(node[key], visit);
-  for (const key of CHILD_LIST_KEYS) {
-    for (const child of node[key] ?? []) walkPrimitives(child, visit);
-  }
+  for (const key of CHILD_LIST_KEYS) for (const child of node[key] ?? []) walkPrimitives(child, visit);
   if (node.areas) for (const child of Object.values(node.areas)) walkPrimitives(child, visit);
   if (node.defaultRoute) walkPrimitives(node.defaultRoute.content, visit);
   for (const route of node.routes ?? []) walkPrimitives(route.content, visit);
-  for (const tab of node.tabs ?? []) {
-    walkPrimitives(tab.title, visit);
-    walkPrimitives(tab.content, visit);
+  for (const tab of node.tabs ?? []) { walkPrimitives(tab.title, visit); walkPrimitives(tab.content, visit); }
+}
+
+// ---------- Поток данных выражений ----------
+
+function walkAst(node, cb) {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) { for (const n of node) walkAst(n, cb); return; }
+  cb(node);
+  for (const v of Object.values(node)) walkAst(v, cb);
+}
+
+function jsonataRoots(expression, where, issues) {
+  let ast;
+  try { ast = jsonata(expression).ast(); }
+  catch (e) {
+    issues.push(`${where}: JSONata не парсится — ${e.message ?? e.code ?? String(e)}`);
+    return new Set();
+  }
+  const roots = new Set();
+  walkAst(ast, n => {
+    if (n?.type === 'path' && Array.isArray(n.steps) && n.steps.length) {
+      const s0 = n.steps[0];
+      if (s0.type === 'name') roots.add(s0.value);
+      else if (s0.type === 'variable' && s0.value === '$' && n.steps[1]?.type === 'name') roots.add(n.steps[1].value); // $$.name
+    }
+  });
+  return roots;
+}
+
+function nitroPayloadRoots(value, roots = new Set()) {
+  if (typeof value === 'string') {
+    for (const m of value.matchAll(/\{([A-Za-z_][A-Za-z0-9_]*)\./g)) roots.add(m[1]);
+  } else if (Array.isArray(value)) for (const v of value) nitroPayloadRoots(v, roots);
+  else if (value && typeof value === 'object') for (const v of Object.values(value)) nitroPayloadRoots(v, roots);
+  return roots;
+}
+
+function checkTransformerData(tr, allowed, scope, where, issues, warnings) {
+  if (!tr || typeof tr !== 'object') return;
+  let roots = new Set();
+  if (tr.type === 'JSONata' && typeof tr.expression === 'string') roots = jsonataRoots(tr.expression, where, issues);
+  else if (tr.type === 'NitroPayload') roots = nitroPayloadRoots(tr.value);
+  for (const root of roots) {
+    if (allowed.has(root)) continue;
+    if (!scope.has(root)) continue; // относительные имена внутри map/предикатов — не сущности области
+    const msg = `${where}: источник "${root}" используется в выражении, но не объявлен в triggers/context`;
+    if (KNOWN_CANON_ISSUES.some(k => k.root === root && where.includes(k.whereIncludes))) warnings.push(`[known] ${msg}`);
+    else issues.push(msg);
   }
 }
+
+// ---------- Семантика компонента ----------
 
 function checkSources(sources, scope, where, issues) {
   for (const ref of Object.keys(sources ?? {})) {
@@ -74,18 +118,9 @@ function checkSources(sources, scope, where, issues) {
   }
 }
 
-function checkActionTargets(actions, scope, where, issues) {
-  const list = Array.isArray(actions) ? actions : [actions];
-  list.forEach((action, j) => {
-    if (action?.target && !scope.has(action.target)) {
-      issues.push(`${where}[${j}]: неизвестный target "${action.target}"`);
-    }
-  });
-}
+function actionList(actions) { return Array.isArray(actions) ? actions : [actions]; }
 
-/** Область видимости компонента и семантические проверки внутри неё. */
-function checkComponent(component, path, issues) {
-  // Проход 1: собрать область видимости.
+function checkComponent(component, path, issues, warnings) {
   const scope = new Set(['COMPONENT']);
   const duplicates = new Set();
   walkPrimitives(component.root, node => {
@@ -97,16 +132,20 @@ function checkComponent(component, path, issues) {
   for (const key of Object.keys(component.models ?? {})) scope.add(key);
   for (const key of Object.keys(component.dataSources ?? {})) scope.add(key);
   for (const service of component.services ?? []) scope.add(service.id ?? service.type);
+  for (const id of duplicates) issues.push(`${path}: дубликат id примитива "${id}" в одной области видимости`);
 
-  for (const id of duplicates) {
-    issues.push(`${path}: дубликат id примитива "${id}" в одной области видимости`);
-  }
-
-  // Проход 2: проверить ссылки — глобальные биндинги и localBindings примитивов.
   (component.bindings ?? []).forEach((binding, i) => {
-    checkSources(binding.triggers, scope, `${path}.bindings[${i}].triggers`, issues);
-    checkSources(binding.context, scope, `${path}.bindings[${i}].context`, issues);
-    checkActionTargets(binding.actions ?? [], scope, `${path}.bindings[${i}].actions`, issues);
+    const bPath = `${path}.bindings[${i}]`;
+    checkSources(binding.triggers, scope, `${bPath}.triggers`, issues);
+    checkSources(binding.context, scope, `${bPath}.context`, issues);
+    const allowed = new Set([...Object.keys(binding.triggers ?? {}), ...Object.keys(binding.context ?? {})]);
+    checkTransformerData(binding.condition, allowed, scope, `${bPath}.condition`, issues, warnings);
+    actionList(binding.actions ?? []).forEach((action, j) => {
+      const aPath = `${bPath}.actions[${j}:${action?.target ?? '?'}]`;
+      if (action?.target && !scope.has(action.target)) issues.push(`${aPath}: неизвестный target "${action.target}"`);
+      checkTransformerData(action?.condition, allowed, scope, `${aPath}.condition`, issues, warnings);
+      checkTransformerData(action?.payload, allowed, scope, `${aPath}.payload`, issues, warnings);
+    });
   });
 
   walkPrimitives(component.root, node => {
@@ -114,49 +153,60 @@ function checkComponent(component, path, issues) {
     if (!local) return;
     const label = `${path}.<${node.type}${node.id ? '#' + node.id : ''}>.localBindings`;
     for (const [name, b] of Object.entries(local.inputs ?? {})) {
-      checkSources(b.triggers, scope, `${label}.inputs.${name}.triggers`, issues);
-      checkSources(b.context, scope, `${label}.inputs.${name}.context`, issues);
+      const w = `${label}.inputs.${name}`;
+      checkSources(b.triggers, scope, `${w}.triggers`, issues);
+      checkSources(b.context, scope, `${w}.context`, issues);
+      const allowed = new Set([...Object.keys(b.triggers ?? {}), ...Object.keys(b.context ?? {})]);
+      checkTransformerData(b.condition, allowed, scope, `${w}.condition`, issues, warnings);
+      checkTransformerData(b.value, allowed, scope, `${w}.value`, issues, warnings);
     }
     for (const [name, b] of Object.entries(local.outputs ?? {})) {
-      // Неявный триггер — сам примитив (selfId), проверять нечего.
-      checkSources(b.context, scope, `${label}.outputs.${name}.context`, issues);
-      checkActionTargets(b.actions ?? [], scope, `${label}.outputs.${name}.actions`, issues);
+      const w = `${label}.outputs.${name}`;
+      checkSources(b.context, scope, `${w}.context`, issues);
+      const allowed = new Set(Object.keys(b.context ?? {})); // свои события доступны по имени — они не сущности области
+      checkTransformerData(b.condition, allowed, scope, `${w}.condition`, issues, warnings);
+      actionList(b.actions ?? []).forEach((action, j) => {
+        const aPath = `${w}.actions[${j}:${action?.target ?? '?'}]`;
+        if (action?.target && !scope.has(action.target)) issues.push(`${aPath}: неизвестный target "${action.target}"`);
+        checkTransformerData(action?.condition, allowed, scope, `${aPath}.condition`, issues, warnings);
+        checkTransformerData(action?.payload, allowed, scope, `${aPath}.payload`, issues, warnings);
+      });
     }
     for (const [name, b] of Object.entries(local.actions ?? {})) {
-      checkSources(b.triggers, scope, `${label}.actions.${name}.triggers`, issues);
-      checkSources(b.context, scope, `${label}.actions.${name}.context`, issues);
+      const w = `${label}.actions.${name}`;
+      checkSources(b.triggers, scope, `${w}.triggers`, issues);
+      checkSources(b.context, scope, `${w}.context`, issues);
+      const allowed = new Set([...Object.keys(b.triggers ?? {}), ...Object.keys(b.context ?? {})]);
+      checkTransformerData(b.condition, allowed, scope, `${w}.condition`, issues, warnings);
+      checkTransformerData(b.payload, allowed, scope, `${w}.payload`, issues, warnings);
     }
   });
 
   for (const [name, child] of Object.entries(component.components ?? {})) {
-    checkComponent(child, `${path}.components.${name}`, issues);
+    checkComponent(child, `${path}.components.${name}`, issues, warnings);
   }
 }
 
-function semanticCheck(config) {
-  const issues = [];
-  if (config?.type === 'component') checkComponent(config, '$', issues);
-  return issues;
-}
-
-// ---------- API для переиспользования (agent.mjs) ----------
+// ---------- API ----------
 
 export function validateConfigText(yamlText) {
   let config;
-  try {
-    config = yaml.load(yamlText);
-  } catch (e) {
-    return { ok: false, errors: [`YAML: ${e.message}`] };
-  }
-  const structureOk = validateSchema(config);
+  try { config = yaml.load(yamlText); }
+  catch (e) { return { ok: false, errors: [`YAML: ${e.message}`], warnings: [] }; }
+
   const errors = [];
-  if (!structureOk) {
+  const warnings = [];
+  if (!validateSchema(config)) {
     for (const e of pickDeepestErrors(validateSchema.errors)) {
       errors.push(`[schema] ${e.instancePath || '/'} ${e.message} ${JSON.stringify(e.params)}`);
     }
   }
-  for (const issue of semanticCheck(config)) errors.push(`[semantic] ${issue}`);
-  return { ok: errors.length === 0, errors };
+  if (config?.type === 'component') {
+    const issues = [];
+    checkComponent(config, '$', issues, warnings);
+    for (const i of issues) errors.push(`[semantic] ${i}`);
+  }
+  return { ok: errors.length === 0, errors, warnings };
 }
 
 // ---------- CLI ----------
@@ -164,20 +214,13 @@ export function validateConfigText(yamlText) {
 const isCli = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isCli) {
   const files = process.argv.slice(2);
-  if (files.length === 0) {
-    console.error('Использование: node tools/validate.mjs <файл.yaml> [...]');
-    process.exit(2);
-  }
+  if (files.length === 0) { console.error('Использование: node tools/validate.mjs <файл.yaml> [...]'); process.exit(2); }
   let failed = 0;
   for (const file of files) {
-    const { ok, errors } = validateConfigText(readFileSync(file, 'utf8'));
-    if (ok) {
-      console.log(`✓ ${file}`);
-    } else {
-      failed++;
-      console.log(`✗ ${file}`);
-      for (const e of errors) console.log(`    ${e}`);
-    }
+    const { ok, errors, warnings } = validateConfigText(readFileSync(file, 'utf8'));
+    console.log(`${ok ? '✓' : '✗'} ${file}`);
+    for (const w of warnings) console.log(`    ${w}`);
+    if (!ok) { failed++; for (const e of errors) console.log(`    ${e}`); }
   }
   process.exit(failed === 0 ? 0 : 1);
 }
