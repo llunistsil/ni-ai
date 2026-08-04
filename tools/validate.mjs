@@ -154,11 +154,18 @@ function analyzeJsonata(expression, where, issues, warnings) {
         warnings.push(`[lint] ${where}: путь ".length" — в JSONata длина массива это $count(x)`);
       }
     }
-    if ((n?.type === 'function' || n?.type === 'partial') && n.procedure?.type === 'variable') {
-      const name = n.procedure.value;
-      if (name && !JSONATA_BUILTINS.has(name) && !defined.has(name)) {
-        const hint = FN_HINTS[name] ? ` (${FN_HINTS[name]})` : '';
-        issues.push(`${where}: неизвестная функция JSONata "$${name}"${hint}`);
+    if (n?.type === 'function' || n?.type === 'partial') {
+      const proc = n.procedure;
+      if (proc?.type === 'variable') {
+        const name = proc.value;
+        if (name && !JSONATA_BUILTINS.has(name) && !defined.has(name)) {
+          const hint = FN_HINTS[name] ? ` (${FN_HINTS[name]})` : '';
+          issues.push(`${where}: неизвестная функция JSONata "$${name}"${hint}`);
+        }
+      } else if (proc?.type === 'path' && proc.steps?.[0]?.type === 'name') {
+        const name = proc.steps.map(s => s.value ?? '').join('.');
+        const dym = JSONATA_BUILTINS.has(proc.steps[0].value) ? ` — имелось в виду $${proc.steps[0].value}(...)?` : '';
+        issues.push(`${where}: вызов "${name}(...)" без $ — функции JSONata начинаются с $${dym}`);
       }
     }
   });

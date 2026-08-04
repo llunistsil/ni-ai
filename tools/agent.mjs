@@ -149,13 +149,8 @@ async function callModel(messages) {
   });
   if (!res.ok) {
     let body = await res.text();
-    if (/^\s*</.test(body)) {
-      body = 'вернулась HTML-страница вместо API-ответа — LLM_PROXY_URL указывает не на API. '
-        + 'Для OpenRouter базовый URL: https://openrouter.ai/api/v1; '
-        + 'для LLM Proxy банка: https://llm-proxy.t-tech.team (при 404 попробуй добавить /v1).';
-    } else if (body.length > 600) {
-      body = body.slice(0, 600) + '…';
-    }
+    if (/^\s*</.test(body)) body = `HTML вместо JSON, начало ответа: ${body.slice(0, 200)}…`;
+    else if (body.length > 600) body = body.slice(0, 600) + '…';
     throw new Error(`LLM Proxy ${res.status}: ${body}`);
   }
   return res.json();
