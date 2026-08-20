@@ -1,7 +1,8 @@
 # Что показывает: выпадающее меню с выбором элемента.
 # Механизмы: dropdown (trigger + content), menu / menuGroup,
 # meta на кнопках и чтение <groupId>.click.meta в биндинге,
-# закрытие дропдауна через setInputs {open: false}.
+# закрытие дропдауна через setInputs {open: false} — только так: статический
+# open в схеме отсутствует (см. nitro3-gotchas.md, таблица расхождений).
 type: component
 root:
   type: panel

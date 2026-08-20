@@ -1,0 +1,165 @@
+# Что показывает: генерация UI из данных через itemTemplate.
+# Механизмы: panel.itemTemplate (items — обычные данные, шаблон возвращает
+# конфиг примитива; поля элемента доступны напрямую, весь элемент — $),
+# localBindings.outputs.click внутри шаблона (свой обработчик у каждого
+# сгенерированного элемента, id не нужен), вычисляемый id в шаблоне
+# ("id": code & "Badge") с адресацией ИЗВЕСТНОГО id литеральным target из
+# глобального биндинга (паттерн боевого feedBadge: шаблон задаёт конвенцию
+# id, биндинг таргетит конкретный), обёртка [ ] против схлопывания
+# одноэлементного массива, обновление badge.content конфигом примитива.
+type: component
+root:
+  type: panel
+  style:
+    flex-direction: column
+    gap: 1rem
+    padding: 2rem
+  items:
+    - type: text
+      style:
+        font: var(--tui-font-heading-h2)
+      text: Каналы уведомлений
+    - type: text
+      id: pickedText
+      style:
+        color: var(--tui-text-secondary)
+      text: Канал не выбран
+    - type: panel
+      id: channelsPanel
+      style:
+        align-items: flex-start
+        flex-direction: column
+        gap: 0.5rem
+      itemTemplate:
+        type: JSONata
+        expression: |
+          {
+            "type": "panel",
+            "style": {"align-items": "center", "gap": "0.75rem"},
+            "items": [
+              {
+                "type": "button",
+                "appearance": "secondary",
+                "size": "m",
+                "meta": {"code": code, "name": name},
+                "content": {"type": "text", "text": name},
+                "localBindings": {
+                  "outputs": {
+                    "click": {
+                      "actions": [{
+                        "target": "picked",
+                        "action": "set",
+                        "payload": {
+                          "type": "JSONata",
+                          "expression": "{'code': click.meta.code, 'name': click.meta.name}"
+                        }
+                      }]
+                    }
+                  }
+                }
+              },
+              {
+                "type": "badge",
+                "id": code & "Badge",
+                "appearance": "negative",
+                "size": "s",
+                "visible": false
+              }
+            ]
+          }
+      items: []
+    - type: button
+      id: alarmButton
+      size: m
+      content:
+        type: text
+        text: +1 тревога
+models:
+  channels:
+    schema:
+      type: object
+      properties:
+        list:
+          type: array
+          default:
+            - code: alarm
+              name: Тревоги
+            - code: news
+              name: Новости
+            - code: digest
+              name: Дайджест
+  picked:
+    schema:
+      type: object
+      properties:
+        code:
+          type:
+            - string
+            - "null"
+          default: null
+        name:
+          type:
+            - string
+            - "null"
+          default: null
+  unread:
+    schema:
+      type: object
+      properties:
+        alarm:
+          type: number
+          default: 0
+bindings:
+  # Рендер: данные модели -> items панели; шаблон превращает каждый элемент
+  # в примитив. Обёртка [ ] обязательна — JSONata схлопывает массив из
+  # одного элемента.
+  - triggers:
+      channels:
+        - state
+    actions:
+      - target: channelsPanel
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"items": [channels.state.list]}'
+  # Реакция на выбор из динамической кнопки (picked пишется её localBindings).
+  - triggers:
+      picked:
+        - state
+    condition:
+      type: JSONata
+      expression: $boolean(picked.state.code)
+    actions:
+      - target: pickedText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": "Выбрано: " & picked.state.name}'
+  # Инкремент счётчика тревог: set — полная замена, поэтому $merge.
+  - triggers:
+      alarmButton:
+        - click
+    context:
+      unread:
+        - state
+    actions:
+      - target: unread
+        action: set
+        payload:
+          type: JSONata
+          expression: '$merge([unread.state, {"alarm": unread.state.alarm + 1}])'
+  # Адресация сгенерированного бейджа: id "alarmBadge" вычислен шаблоном
+  # (code & "Badge"), но известен по конвенции — target литеральный.
+  - triggers:
+      unread:
+        - state
+    actions:
+      - target: alarmBadge
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: |
+            {
+              "visible": unread.state.alarm > 0,
+              "content": {"type": "text", "text": $string(unread.state.alarm)}
+            }

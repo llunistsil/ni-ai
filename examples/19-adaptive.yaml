@@ -1,0 +1,111 @@
+# Что показывает: адаптивная перестройка UI под тип устройства.
+# Механизмы: глобальный сервис browserEnvironment (id задавать НЕЛЬЗЯ, target
+# по имени типа), output deviceType (desktop|tablet|mobile — по размерам
+# окна, меняется при ресайзе), боевой паттерн layoutModel — единая точка
+# правды о раскладке с condition против лишних сетов (deviceType шлёт
+# значения и без фактической смены раскладки), производные setInputs:
+# видимость элементов и переключение style целиком.
+type: component
+root:
+  type: panel
+  style:
+    flex-direction: column
+    gap: 1rem
+    padding: 2rem
+  items:
+    - type: panel
+      style:
+        align-items: center
+        gap: 1rem
+      items:
+        - type: text
+          style:
+            font: var(--tui-font-heading-h2)
+          text: Сводка смены
+        - type: button
+          id: menuButton
+          style:
+            padding: "0"
+          appearance: action-tertiary
+          size: m
+          visible: false
+          content:
+            type: icon
+            icon: "@tui.pragmatic.medium.list"
+    - type: panel
+      id: contentGrid
+      style:
+        display: grid
+        gap: 1rem
+        gridTemplateColumns: 2fr 1fr
+      items:
+        - type: container
+          style:
+            background: var(--tui-background-neutral-1)
+            border-radius: var(--tui-radius-m)
+            padding: 1rem
+          content:
+            type: text
+            text: Основной контент
+        - type: container
+          id: sidePanel
+          style:
+            background: var(--tui-background-neutral-1)
+            border-radius: var(--tui-radius-m)
+            padding: 1rem
+          content:
+            type: text
+            text: Боковая панель (только desktop/tablet)
+models:
+  layoutModel:
+    schema:
+      type: object
+      properties:
+        isMobile:
+          type: boolean
+          default: false
+services:
+  - type: browserEnvironment
+bindings:
+  # deviceType -> layoutModel. Condition отсекает сеты без фактической смены
+  # раскладки (боевой паттерн).
+  - triggers:
+      browserEnvironment:
+        - deviceType
+    context:
+      layoutModel:
+        - state
+    condition:
+      type: JSONata
+      expression: "(layoutModel.state.isMobile ?: false) != (browserEnvironment.deviceType = 'mobile')"
+    actions:
+      - target: layoutModel
+        action: set
+        payload:
+          type: JSONata
+          expression: '{"isMobile": browserEnvironment.deviceType = "mobile"}'
+  # Раскладка — производная от layoutModel: видимость и style целиком.
+  - triggers:
+      layoutModel:
+        - state
+    actions:
+      - target: sidePanel
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"visible": $not(layoutModel.state.isMobile)}'
+      - target: menuButton
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"visible": layoutModel.state.isMobile}'
+      - target: contentGrid
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: |
+            {
+              "style": layoutModel.state.isMobile
+                ? {"display": "grid", "gap": "1rem", "gridTemplateColumns": "1fr"}
+                : {"display": "grid", "gap": "1rem", "gridTemplateColumns": "2fr 1fr"}
+            }

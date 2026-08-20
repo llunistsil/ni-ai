@@ -1,0 +1,81 @@
+# Что показывает: iframe и две формы его url.
+# Механизмы: статический url строкой (единственная форма, валидная в схеме
+# статически), runtime-установка url ОБЪЕКТОМ {host, path, queryParams, hash}
+# через setInputs (боевой паттерн: воркспейс так собирает адрес из
+# urlState.domains и baseHost приложения), meta на кнопках как источник
+# данных для сборки url, allow — Permissions Policy айфрейма.
+# Поля src у примитива не существует.
+type: component
+root:
+  type: panel
+  style:
+    blockSize: 100%
+    display: grid
+    gap: 1rem
+    gridTemplateRows: auto 1fr
+    padding: 1.5rem
+  items:
+    - type: panel
+      style:
+        gap: 0.75rem
+      items:
+        - type: button
+          id: standAButton
+          size: m
+          meta:
+            host: stand-a.demo.tbank.ru
+            path: /report
+          content:
+            type: text
+            text: Стенд A
+        - type: button
+          id: standBButton
+          appearance: secondary
+          size: m
+          meta:
+            host: stand-b.demo.tbank.ru
+            path: /report
+          content:
+            type: text
+            text: Стенд B
+    - type: iframe
+      id: previewFrame
+      style:
+        blockSize: 100%
+        inlineSize: 100%
+      url: https://stand-a.demo.tbank.ru/report?theme=light
+      allow: clipboard-read *; clipboard-write *
+bindings:
+  # url-объект: host/path из meta кнопки, queryParams добавляются при сборке.
+  - triggers:
+      standAButton:
+        - click
+    actions:
+      - target: previewFrame
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: |
+            {
+              "url": {
+                "host": standAButton.click.meta.host,
+                "path": standAButton.click.meta.path,
+                "queryParams": {"theme": "light"}
+              }
+            }
+  - triggers:
+      standBButton:
+        - click
+    actions:
+      - target: previewFrame
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: |
+            {
+              "url": {
+                "host": standBButton.click.meta.host,
+                "path": standBButton.click.meta.path,
+                "queryParams": {"theme": "light"}
+              }
+            }

@@ -3,6 +3,7 @@
 # события success / failure / inProgress, loader (show), alerts,
 # ветвление по статусу через condition на уровне action.
 # URL мокается интерсептом в nitro3:serve или секцией mocks (когда появится).
+# Автозагрузка при инициализации компонента — mode: onLoad, см. пример 16.
 type: component
 root:
   type: panel
@@ -80,7 +81,6 @@ bindings:
         payload:
           type: JSONata
           expression: '{"text": profileDS.success.body.email}'
-  # Ошибки: разные алерты по статусу — condition на уровне отдельного action.
   - triggers:
       profileDS:
         - failure

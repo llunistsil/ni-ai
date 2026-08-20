@@ -48,7 +48,6 @@ models:
           type: number
           default: 0
 bindings:
-  # Инкремент: читаем текущее состояние через context и заменяем целиком.
   - triggers:
       incButton:
         - click
@@ -61,7 +60,6 @@ bindings:
         payload:
           type: JSONata
           expression: '{"count": counter.state.count + 1}'
-  # Сброс: статичный payload — NitroPayload.
   - triggers:
       resetButton:
         - click
@@ -72,7 +70,6 @@ bindings:
           type: NitroPayload
           value:
             count: 0
-  # Реакция на состояние: текст и видимость.
   - triggers:
       counter:
         - state

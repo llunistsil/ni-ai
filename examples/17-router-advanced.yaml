@@ -1,0 +1,164 @@
+# Что показывает: продвинутая маршрутизация.
+# Механизмы: динамический сегмент (items/:id) — отдельного механизма route
+# params НЕТ, значение читается ТОЛЬКО через navigation.urlState.pathSegments;
+# вложенный router (дочерний учитывает route родителя, у каждого свой
+# defaultRoute); link.isActive как output-триггер; isActiveMatchOptions
+# paths: subset для подсветки секции с вложенными путями.
+type: component
+root:
+  type: panel
+  style:
+    blockSize: 100%
+    display: grid
+    gridTemplateRows: auto 1fr
+  items:
+    - type: panel
+      style:
+        align-items: center
+        borderBottom: 1px solid var(--tui-border-normal)
+        gap: 1rem
+        padding: 0.75rem 1.5rem
+      items:
+        - type: link
+          id: itemsLink
+          url: items
+          mode: navigate
+          isActiveMatchOptions:
+            paths: subset
+            queryParams: ignored
+          content:
+            type: button
+            appearance: secondary
+            size: s
+            content:
+              type: text
+              text: Товары
+        - type: link
+          url: about
+          mode: navigate
+          isActiveMatchOptions:
+            paths: subset
+            queryParams: ignored
+          content:
+            type: button
+            appearance: secondary
+            size: s
+            content:
+              type: text
+              text: О нас
+        - type: text
+          id: sectionText
+          style:
+            color: var(--tui-text-secondary)
+            font: var(--tui-font-text-s)
+          text: ""
+    - type: router
+      defaultRoute:
+        content:
+          type: panel
+          style:
+            padding: 2rem
+          items:
+            - type: text
+              text: Выберите раздел
+      routes:
+        # Список: обычные link navigate ведут на динамические пути.
+        - path: items
+          content:
+            type: panel
+            style:
+              flex-direction: column
+              gap: 0.5rem
+              padding: 2rem
+            items:
+              - type: link
+                url: items/1
+                mode: navigate
+                content:
+                  type: text
+                  text: Товар №1
+              - type: link
+                url: items/2
+                mode: navigate
+                content:
+                  type: text
+                  text: Товар №2
+        # Динамический сегмент: контент один на все id, конкретное значение
+        # достаётся биндингом из urlState.pathSegments.
+        - path: items/:id
+          content:
+            type: panel
+            style:
+              padding: 2rem
+            items:
+              - type: text
+                id: itemIdText
+                style:
+                  font: var(--tui-font-heading-h3)
+                text: —
+        # Вложенный router: пути дочернего учитывают route родителя.
+        - path: about
+          content:
+            type: panel
+            style:
+              flex-direction: column
+              gap: 1rem
+              padding: 2rem
+            items:
+              - type: panel
+                style:
+                  gap: 1rem
+                items:
+                  - type: link
+                    url: about/team
+                    mode: navigate
+                    content:
+                      type: text
+                      text: Команда
+                  - type: link
+                    url: about/contacts
+                    mode: navigate
+                    content:
+                      type: text
+                      text: Контакты
+              - type: router
+                defaultRoute:
+                  content:
+                    type: text
+                    text: Выберите подраздел
+                routes:
+                  - path: team
+                    content:
+                      type: text
+                      text: Мы делаем Nitro3
+                  - path: contacts
+                    content:
+                      type: text
+                      text: nitro3@tbank.ru
+services:
+  - type: navigation
+    id: nav
+bindings:
+  # Чтение параметра маршрута: pathSegments = ["items", "<id>"].
+  - triggers:
+      nav:
+        - urlState
+    condition:
+      type: JSONata
+      expression: nav.urlState.pathSegments[0] = 'items' and $count(nav.urlState.pathSegments) > 1
+    actions:
+      - target: itemIdText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": "Карточка товара №" & nav.urlState.pathSegments[1]}'
+  # isActive — обычный output ссылки.
+  - triggers:
+      itemsLink:
+        - isActive
+    actions:
+      - target: sectionText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": itemsLink.isActive ? "Раздел: товары" : ""}'
