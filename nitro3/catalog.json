@@ -1,0 +1,305 @@
+{
+  "$comment": "Рантайм-контракт сущностей Nitro3 для Studio. Дополняет schema/nitro3-schema.json тем, чего в схеме нет: какие поля можно менять в рантайме, какие outputs служат триггерами, какие actions доступны. Поля: static — только конфиг; runtime — конфиг и setInputs (подтверждено доками как Input+Output или примерами); runtimeOnly — схема отвергает статически, только setInputs; outputs — имя → форма значения; actions — имя → форма payload. status: verified | unverified (есть в доках, нет в схеме/на стенде) | deprecated.",
+  "version": "schema-v2 / 2026-08-18",
+
+  "common": {
+    "primitive": {
+      "static": ["id", "type", "invisibleMode", "localBindings"],
+      "runtime": ["visible", "meta", "style", "classes"],
+      "outputs": {
+        "visible": "boolean",
+        "meta": "object",
+        "style": "object",
+        "classes": "string"
+      },
+      "actions": {
+        "setInputs": "{<inputName>: value, ...}"
+      }
+    }
+  },
+
+  "primitives": {
+    "panel": {
+      "category": "layout",
+      "static": ["itemTemplate"],
+      "runtime": ["items"],
+      "outputs": { "items": "Primitive[] | data[] при itemTemplate" },
+      "notes": [
+        "items через setInputs: обёртка [ ] обязательна — JSONata схлопывает массив из одного элемента",
+        "appearance (accessories/subtitle) есть в доках, нет в схеме — не показывать"
+      ]
+    },
+    "container": {
+      "category": "layout",
+      "runtime": ["content"],
+      "outputs": { "content": "Primitive" }
+    },
+    "grid": {
+      "category": "layout",
+      "status": "deprecated",
+      "static": ["areas"],
+      "notes": ["Только легаси. Новый layout — panel с display: grid в style"]
+    },
+    "tabs": {
+      "category": "layout",
+      "static": ["underlineColor", "moreContent", "tabTemplate"],
+      "runtime": ["activeTabIndex", "tabs"],
+      "outputs": {
+        "activeTabIndex": "number",
+        "activeTab": "TabItem | null",
+        "tabs": "TabItem[] | data[] при tabTemplate"
+      },
+      "actions": {
+        "activateTab": "{tabId: string, fallbackTabIndex?: number}"
+      },
+      "notes": [
+        "activeTabIndex: -1 — нет активной вкладки",
+        "Если все title — link с mode: navigate, активная вкладка синхронизируется с URL",
+        "activateTab: tabId есть — активировать; нет и есть fallbackTabIndex — по индексу; fallbackTabIndex -1 — сбросить; fallback не задан — ничего"
+      ]
+    },
+    "router": {
+      "category": "navigation",
+      "static": ["defaultRoute", "routes"],
+      "notes": [
+        "routes плоские; иерархия — вложенным router, дочерний учитывает route родителя",
+        "выбор маршрута только по path-сегментам; queryParams/hash — данные из navigation.urlState",
+        "значение динамического сегмента (items/:id) читается только через navigation.urlState.pathSegments",
+        "sibling routing не поддерживается; одинаковые routes в одной области — ошибка (логируется)"
+      ]
+    },
+    "link": {
+      "category": "navigation",
+      "static": ["url", "mode", "openIn", "appearance", "iconStart", "iconEnd", "ignoreBaseHref", "isActiveMatchOptions", "content"],
+      "outputs": {
+        "isActive": "boolean",
+        "click": "{id?, type, meta?, url?}"
+      },
+      "actions": {
+        "activate": "null — только при mode: navigate"
+      },
+      "notes": [
+        "mode: open — браузерная навигация; navigate — смена URL без перезагрузки; manual — URL не меняется, обрабатывать click",
+        "isActiveMatchOptions default: paths exact, queryParams exact, fragment ignored, matrixParams ignored; для секций — paths: subset, queryParams: ignored"
+      ]
+    },
+    "button": {
+      "category": "interactive",
+      "static": ["iconStart", "iconEnd", "size", "content"],
+      "runtime": ["appearance", "disabled"],
+      "outputs": { "click": "{id?, type, meta?}" },
+      "notes": [
+        "meta кнопки прокидывается в событие click — основной способ передать данные о нажатом элементе",
+        "чекбоксов/свитчей на платформе нет: переключатель = button с appearance primary/secondary от булева поля модели"
+      ]
+    },
+    "dropdown": {
+      "category": "interactive",
+      "static": ["trigger", "content", "align", "direction"],
+      "runtimeOnly": ["open"],
+      "notes": ["Закрывается только явно: setInputs {open: false} после выбора"]
+    },
+    "menu": {
+      "category": "interactive",
+      "static": ["size", "groups", "groupTemplate"],
+      "outputs": { "click": "payload click дочернего элемента" }
+    },
+    "menuGroup": {
+      "category": "interactive",
+      "static": ["label", "items", "itemTemplate"],
+      "outputs": { "click": "payload click дочернего элемента" },
+      "notes": ["Канонический выбор: meta на элементах + триггер <groupId>: click + чтение <groupId>.click.meta"]
+    },
+    "text": {
+      "category": "content",
+      "runtime": ["text"],
+      "outputs": { "text": "string" },
+      "notes": ["appearance (subtitle/caption) нет в схеме — приглушённый текст через style.color: var(--tui-text-secondary)"]
+    },
+    "image": {
+      "category": "content",
+      "runtime": ["src"],
+      "outputs": { "src": "string" }
+    },
+    "icon": {
+      "category": "content",
+      "static": ["icon"],
+      "notes": ["icon: '@tui.heart' | URL | inline data:image/svg+xml;..."]
+    },
+    "avatar": {
+      "category": "content",
+      "static": ["shape", "size", "content"]
+    },
+    "badge": {
+      "category": "content",
+      "static": ["size", "iconStart", "iconEnd"],
+      "runtime": ["appearance", "content"]
+    },
+    "loader": {
+      "category": "content",
+      "static": ["size", "inheritColor", "overlay", "content"],
+      "runtime": ["show"]
+    },
+    "header": {
+      "category": "content",
+      "static": ["size", "content", "contentEnd"],
+      "notes": ["content — title; contentEnd — panel"]
+    },
+    "title": {
+      "category": "content",
+      "static": ["size", "appearance", "uptitle", "title", "subtitle"]
+    },
+    "cell": {
+      "category": "content",
+      "static": ["appearance", "size", "height", "contentStart", "content", "contentEnd"],
+      "notes": ["Списки и таблицы собираются из panel + cell: table/drawer/skeleton в воркспейсе недоступны"]
+    },
+    "textfield": {
+      "category": "interactive",
+      "static": ["inputType", "label", "placeholder", "filler", "size", "autocomplete", "showCleaner", "iconStart", "iconEnd", "contentEnd"],
+      "runtime": ["text", "readOnly", "disabled", "invalid"],
+      "outputs": { "text": "string — триггер на ввод" }
+    },
+    "componentPresenter": {
+      "category": "special",
+      "static": ["componentId"],
+      "runtime": ["inputs"],
+      "outputs": { "<outputProp>": "по properties дочернего компонента с direction output | bidirectional" },
+      "actions": { "setInputs": "{<inputProp>: value} — по properties с direction input | bidirectional" },
+      "notes": ["Взаимодействие с презентером = взаимодействие с компонентом"]
+    },
+    "iframe": {
+      "category": "special",
+      "static": ["allow"],
+      "runtime": ["url"],
+      "runtimeOnly": ["url как объект {host, path, queryParams, hash}"],
+      "outputs": { "url": "string | object" },
+      "notes": ["Поля src нет", "Боевой паттерн: host собирается из navigation.urlState.domains"]
+    },
+    "microfrontend": {
+      "category": "special",
+      "static": ["url", "initialConfig"],
+      "runtime": ["mfInput"],
+      "outputs": {
+        "mfInput": "object",
+        "mfOutput": "object",
+        "<eventName>": "динамические события МФ — известны только рантайму"
+      },
+      "actions": { "<mfAction>": "все actions МФ — известны только рантайму" },
+      "notes": [
+        "url не рантайм-инпут; без url МФ не грузится",
+        "initialConfig по докам не рантайм-инпут; в актуальной платформе смена initialConfig пересоздаёт МФ — не класть туда меняющиеся данные",
+        "МФ без UI подключается как сервис с теми же правилами"
+      ]
+    }
+  },
+
+  "services": {
+    "alerts": {
+      "global": true,
+      "actions": {
+        "show": "{header: string (обязателен), content?: string | Primitive | null, appearance?: info|positive|negative|warning|neutral, autoClose?: number (default 3000; 0 — не закрывать), closable?: boolean, icon?: string | null}"
+      }
+    },
+    "navigation": {
+      "global": false,
+      "outputs": {
+        "urlState": "{fullUrl, origin, baseHref, path, queryParams, pathSegments: string[], domains: string[]}"
+      },
+      "actions": {
+        "open": "{url: string, target?: string (default _blank)} — браузерная навигация",
+        "navigate": "{commands: any[], extras?: object} — семантика Angular Router"
+      },
+      "notes": ["В бою id: navigation — совпадает с типом, но это именно id"]
+    },
+    "timer": {
+      "global": false,
+      "static": ["mode", "timerType", "interval"],
+      "outputs": {
+        "tick": "{timePassed: number} — реальные мс от старта",
+        "isStarted": "boolean"
+      },
+      "actions": {
+        "start": "null (payload обязателен)",
+        "stop": "null (payload обязателен)"
+      },
+      "notes": ["interval >= 1000, иначе throw в конструкторе", "stop -> start = рестарт с нуля; паузы нет"]
+    },
+    "browserTab": {
+      "global": true,
+      "runtime": ["title"],
+      "outputs": {
+        "title": "string",
+        "isActive": "boolean — вкладка Нитро активна",
+        "isFocused": "boolean — фокус браузера"
+      }
+    },
+    "browserEnvironment": {
+      "global": true,
+      "outputs": {
+        "deviceType": "desktop | tablet | mobile — по размерам окна, меняется при ресайзе",
+        "displayMode": "browser | standalone | webview",
+        "isMobile": "boolean",
+        "envName": "test | preprod | prod",
+        "language": "string",
+        "userAgent": "string",
+        "timeZone": "string (GMT+03:00)",
+        "battery.level": "number | null",
+        "connection.downlink": "number | null"
+      },
+      "notes": ["deviceType шлёт значения и без фактической смены раскладки — в биндингах нужен condition против лишних сетов"]
+    },
+    "sheetDialog": {
+      "global": false,
+      "static": ["title", "content", "footer", "appearance", "closable", "showBar", "stops", "initialStopIndex", "offset", "style", "classes"],
+      "runtime": ["isOpen"],
+      "outputs": { "isOpen": "boolean" },
+      "actions": {
+        "show": "null (payload обязателен)",
+        "hide": "null (payload обязателен)"
+      }
+    },
+    "localStorage": {
+      "status": "unverified",
+      "notes": ["Есть в доках, нет в схеме воркспейса — считать недоступным"]
+    }
+  },
+
+  "dataSources": {
+    "http": {
+      "static": ["url", "mode", "method", "body", "headers", "credentials", "timeout", "redirect"],
+      "outputs": {
+        "inProgress": "boolean",
+        "success": "{body, status, headers} — 2xx",
+        "failure": "{body, status, headers} — при network error / timeout body: null, status: 0"
+      },
+      "actions": {
+        "send": "{body?} — при mode: manual; mode: onLoad шлёт при инициализации с body из конфига"
+      },
+      "notes": ["Ветвление по статусу — condition на отдельных actions одного биндинга"]
+    }
+  },
+
+  "model": {
+    "static": ["schema", "localBindings"],
+    "outputs": { "state": "значение по schema; начальное — из default" },
+    "actions": {
+      "set": "новое состояние целиком — ВСЕГДА полная замена, не merge"
+    },
+    "notes": ["Частичное обновление — $merge([m.state, {...}]) с моделью в context", "Зависимые поля — одним set, не серией"]
+  },
+
+  "component": {
+    "static": ["root", "properties", "models", "services", "dataSources", "components", "bindings"],
+    "self": {
+      "id": "COMPONENT",
+      "outputs": { "<inputProp>": "триггер/context COMPONENT: [prop] — чтение input изнутри" },
+      "actions": { "setInputs": "{<outputProp>: value} — публикация output изнутри" }
+    },
+    "notes": [
+      "Имя компонента — ключ в components; поле id — только константа COMPONENT",
+      "Через границу — только properties: input вниз, output вверх, bidirectional оба",
+      "Пропс без значения не даёт значение — зависящие биндинги не стартуют"
+    ]
+  }
+}

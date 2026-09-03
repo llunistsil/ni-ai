@@ -1,0 +1,189 @@
+# Что показывает: переключатели кнопками — чекбоксов/свитчей на платформе нет.
+# Механизмы: булевы поля модели как состояние набора переключателей, appearance
+# кнопки как производная от поля; инверсия одного поля через $merge + $not
+# (set — всегда полная замена, не merge!); производные от состояния значения
+# ($sift + $count): счётчик выполненного и видимость бейджа готовности.
+type: component
+root:
+  type: panel
+  style:
+    align-items: stretch
+    flex-direction: column
+    gap: 1rem
+    padding: 2rem
+  items:
+    - type: text
+      style:
+        font: var(--tui-font-heading-h2)
+      text: Чек-лист открытия смены
+    - type: panel
+      style:
+        align-items: center
+        gap: 1rem
+      items:
+        - type: text
+          id: progressText
+          text: Выполнено 0 из 5
+        - type: badge
+          id: readyBadge
+          appearance: positive
+          size: m
+          visible: false
+          content:
+            type: text
+            text: Готово
+    - type: button
+      id: item1Button
+      appearance: secondary
+      size: m
+      content:
+        type: text
+        text: Открыть кассу
+    - type: button
+      id: item2Button
+      appearance: secondary
+      size: m
+      content:
+        type: text
+        text: Пересчитать наличные
+    - type: button
+      id: item3Button
+      appearance: secondary
+      size: m
+      content:
+        type: text
+        text: Проверить терминал
+    - type: button
+      id: item4Button
+      appearance: secondary
+      size: m
+      content:
+        type: text
+        text: Выложить товар
+    - type: button
+      id: item5Button
+      appearance: secondary
+      size: m
+      content:
+        type: text
+        text: Включить вывеску
+models:
+  checklist:
+    schema:
+      type: object
+      properties:
+        item1:
+          type: boolean
+          default: false
+        item2:
+          type: boolean
+          default: false
+        item3:
+          type: boolean
+          default: false
+        item4:
+          type: boolean
+          default: false
+        item5:
+          type: boolean
+          default: false
+bindings:
+  - triggers:
+      item1Button:
+        - click
+    context:
+      checklist:
+        - state
+    actions:
+      - target: checklist
+        action: set
+        payload:
+          type: JSONata
+          expression: '$merge([checklist.state, {"item1": $not(checklist.state.item1)}])'
+  - triggers:
+      item2Button:
+        - click
+    context:
+      checklist:
+        - state
+    actions:
+      - target: checklist
+        action: set
+        payload:
+          type: JSONata
+          expression: '$merge([checklist.state, {"item2": $not(checklist.state.item2)}])'
+  - triggers:
+      item3Button:
+        - click
+    context:
+      checklist:
+        - state
+    actions:
+      - target: checklist
+        action: set
+        payload:
+          type: JSONata
+          expression: '$merge([checklist.state, {"item3": $not(checklist.state.item3)}])'
+  - triggers:
+      item4Button:
+        - click
+    context:
+      checklist:
+        - state
+    actions:
+      - target: checklist
+        action: set
+        payload:
+          type: JSONata
+          expression: '$merge([checklist.state, {"item4": $not(checklist.state.item4)}])'
+  - triggers:
+      item5Button:
+        - click
+    context:
+      checklist:
+        - state
+    actions:
+      - target: checklist
+        action: set
+        payload:
+          type: JSONata
+          expression: '$merge([checklist.state, {"item5": $not(checklist.state.item5)}])'
+  - triggers:
+      checklist:
+        - state
+    actions:
+      - target: item1Button
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"appearance": checklist.state.item1 ? "primary" : "secondary"}'
+      - target: item2Button
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"appearance": checklist.state.item2 ? "primary" : "secondary"}'
+      - target: item3Button
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"appearance": checklist.state.item3 ? "primary" : "secondary"}'
+      - target: item4Button
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"appearance": checklist.state.item4 ? "primary" : "secondary"}'
+      - target: item5Button
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"appearance": checklist.state.item5 ? "primary" : "secondary"}'
+      - target: progressText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": "Выполнено " & $string($count($keys($sift(checklist.state, function($v) { $v })))) & " из 5"}'
+      - target: readyBadge
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"visible": $count($keys($sift(checklist.state, function($v) { $v }))) = 5}'

@@ -1,0 +1,1666 @@
+{
+  "$ref": "#/definitions/primitive",
+  "definitions": {
+    "basePrimitive": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        }
+      }
+    },
+    "primitive": {
+      "type": "object",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/grid"
+        },
+        {
+          "$ref": "#/definitions/container"
+        },
+        {
+          "$ref": "#/definitions/image"
+        },
+        {
+          "$ref": "#/definitions/panel"
+        },
+        {
+          "$ref": "#/definitions/link"
+        },
+        {
+          "$ref": "#/definitions/icon"
+        },
+        {
+          "$ref": "#/definitions/text"
+        },
+        {
+          "$ref": "#/definitions/button"
+        },
+        {
+          "$ref": "#/definitions/component"
+        },
+        {
+          "$ref": "#/definitions/tabs"
+        },
+        {
+          "$ref": "#/definitions/router"
+        },
+        {
+          "$ref": "#/definitions/dropdown"
+        },
+        {
+          "$ref": "#/definitions/menu"
+        },
+        {
+          "$ref": "#/definitions/menuGroup"
+        },
+        {
+          "$ref": "#/definitions/iframe"
+        },
+        {
+          "$ref": "#/definitions/componentPresenter"
+        },
+        {
+          "$ref": "#/definitions/avatar"
+        },
+        {
+          "$ref": "#/definitions/microfrontend"
+        },
+        {
+          "$ref": "#/definitions/loader"
+        },
+        {
+          "$ref": "#/definitions/textfield"
+        },
+        {
+          "$ref": "#/definitions/badge"
+        },
+        {
+          "$ref": "#/definitions/cell"
+        },
+        {
+          "$ref": "#/definitions/title"
+        },
+        {
+          "$ref": "#/definitions/header"
+        }
+      ]
+    },
+    "component": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "component"
+        },
+        "id": {
+          "const": "COMPONENT"
+        },
+        "root": {
+          "$ref": "#/definitions/primitive",
+          "description": "The root primitive of the component"
+        },
+        "models": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/model"
+          }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/service"
+          }
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/binding"
+          }
+        },
+        "dataSources": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/dataSource"
+          }
+        },
+        "components": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/component"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "direction": {
+                "enum": [
+                  "input",
+                  "output",
+                  "bidirectional"
+                ]
+              },
+              "schema": {
+                "$ref": "https://json-schema.org/draft/2020-12/schema"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "type",
+        "root"
+      ],
+      "additionalProperties": false
+    },
+    "model": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "$ref": "https://json-schema.org/draft/2020-12/schema"
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "grid": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "grid"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "areas": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/primitive"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "panel": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "panel"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/primitive"
+          }
+        },
+        "itemTemplate": {
+          "$ref": "#/definitions/payloadTransformer"
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tabs": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "tabs"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "activeTabIndex": {
+          "type": "number",
+          "description": "The index of initial active tab. Can be -1 to disable initial active tab."
+        },
+        "underlineColor": {
+          "type": "string",
+          "description": "Possible value: var(--tui-text-secondary)"
+        },
+        "moreContent": {
+          "$ref": "#/definitions/primitive"
+        },
+        "tabs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "meta": {
+                "type": "object"
+              },
+              "title": {
+                "$ref": "#/definitions/primitive"
+              },
+              "content": {
+                "$ref": "#/definitions/primitive"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "tabTemplate": {
+          "$ref": "#/definitions/payloadTransformer"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "container": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "container"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/definitions/primitive"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "router": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "router"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "defaultRoute": {
+          "type": "object",
+          "properties": {
+            "isolate": {
+              "type": "boolean"
+            },
+            "content": {
+              "$ref": "#/definitions/primitive"
+            }
+          }
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "isolate": {
+                "type": "boolean"
+              },
+              "content": {
+                "$ref": "#/definitions/primitive"
+              }
+            }
+          }
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "button": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "button"
+        },
+        "id": {
+          "type": "string"
+        },
+        "meta": {
+          "type": "object"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "size": {
+          "enum": [
+            "xs",
+            "s",
+            "m",
+            "l"
+          ]
+        },
+        "appearance": {
+          "type": "string"
+        },
+        "iconStart": {
+          "type": "string"
+        },
+        "iconEnd": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/definitions/primitive"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "link": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "link"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "open",
+            "navigate",
+            "manual"
+          ]
+        },
+        "openIn": {
+          "enum": [
+            "newTab",
+            "currentTab"
+          ]
+        },
+        "appearance": {
+          "type": "string"
+        },
+        "iconStart": {
+          "type": "string"
+        },
+        "iconEnd": {
+          "type": "string"
+        },
+        "isActiveMatchOptions": {
+          "type": "object",
+          "properties": {
+            "paths": {
+              "enum": [
+                "exact",
+                "subset"
+              ]
+            },
+            "queryParams": {
+              "enum": [
+                "exact",
+                "subset",
+                "ignored"
+              ]
+            },
+            "fragment": {
+              "enum": [
+                "exact",
+                "ignored"
+              ]
+            },
+            "matrixParams": {
+              "enum": [
+                "exact",
+                "subset",
+                "ignored"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "content": {
+          "$ref": "#/definitions/primitive"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "ignoreBaseHref": {
+          "type": "boolean"
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "dropdown": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "dropdown"
+        },
+        "id": {
+          "type": "string"
+        },
+        "trigger": {
+          "$ref": "#/definitions/primitive"
+        },
+        "content": {
+          "$ref": "#/definitions/primitive"
+        },
+        "align": {
+          "enum": [
+            "left",
+            "right",
+            "center"
+          ]
+        },
+        "direction": {
+          "enum": [
+            "bottom",
+            "top"
+          ]
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "menu": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "menu"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "size": {
+          "enum": [
+            "s",
+            "m",
+            "l"
+          ]
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/menuGroup"
+          }
+        },
+        "groupTemplate": {
+          "$ref": "#/definitions/payloadTransformer"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "menuGroup": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "menuGroup"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/primitive"
+          }
+        },
+        "itemTemplate": {
+          "$ref": "#/definitions/payloadTransformer"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      }
+    },
+    "text": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "image"
+        },
+        "id": {
+          "type": "string"
+        },
+        "src": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "icon": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "icon"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "iframe": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "iframe"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "allow": {
+          "type": "string"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "componentPresenter": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "componentPresenter"
+        },
+        "id": {
+          "type": "string"
+        },
+        "componentId": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "object"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "avatar": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "avatar"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/definitions/primitive"
+        },
+        "shape": {
+          "enum": [
+            "circle",
+            "square"
+          ]
+        },
+        "size": {
+          "enum": [
+            "s",
+            "m",
+            "l"
+          ]
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "microfrontend": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "microfrontend"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "initialConfig": {
+          "type": "object"
+        },
+        "mfInput": {
+          "type": "object"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "triggers": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "action": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "condition": {
+          "$ref": "#/definitions/payloadTransformer"
+        },
+        "payload": {
+          "$ref": "#/definitions/payloadTransformer"
+        }
+      }
+    },
+    "actions": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/action"
+          }
+        },
+        {
+          "$ref": "#/definitions/action"
+        }
+      ]
+    },
+    "binding": {
+      "type": "object",
+      "properties": {
+        "triggers": {
+          "$ref": "#/definitions/triggers"
+        },
+        "context": {
+          "$ref": "#/definitions/triggers"
+        },
+        "condition": {
+          "$ref": "#/definitions/payloadTransformer"
+        },
+        "actions": {
+          "$ref": "#/definitions/actions"
+        }
+      },
+      "required": [
+        "triggers",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "localBindings": {
+      "type": "object",
+      "properties": {
+        "inputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "triggers": {
+                "$ref": "#/definitions/triggers"
+              },
+              "context": {
+                "$ref": "#/definitions/triggers"
+              },
+              "condition": {
+                "$ref": "#/definitions/payloadTransformer"
+              },
+              "value": {
+                "$ref": "#/definitions/payloadTransformer"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "context": {
+                "$ref": "#/definitions/triggers"
+              },
+              "condition": {
+                "$ref": "#/definitions/payloadTransformer"
+              },
+              "actions": {
+                "$ref": "#/definitions/actions"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "actions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "triggers": {
+                "$ref": "#/definitions/triggers"
+              },
+              "context": {
+                "$ref": "#/definitions/triggers"
+              },
+              "condition": {
+                "$ref": "#/definitions/payloadTransformer"
+              },
+              "payload": {
+                "$ref": "#/definitions/payloadTransformer"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "payloadTransformer": {
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "NitroPayload"
+            },
+            "value": {
+              "type": [
+                "object",
+                "boolean",
+                "number",
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "JSONata"
+            },
+            "expression": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "service": {
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "alerts"
+            },
+            "localBindings": {
+              "$ref": "#/definitions/localBindings"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "navigation"
+            },
+            "id": {
+              "type": "string"
+            },
+            "localBindings": {
+              "$ref": "#/definitions/localBindings"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "browserTab"
+            },
+            "title": {
+              "type": "string"
+            },
+            "localBindings": {
+              "$ref": "#/definitions/localBindings"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "browserEnvironment"
+            },
+            "localBindings": {
+              "$ref": "#/definitions/localBindings"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "timer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "mode": {
+              "enum": [
+                "onLoad",
+                "manual"
+              ]
+            },
+            "interval": {
+              "type": "number"
+            },
+            "timerType": {
+              "enum": [
+                "normal",
+                "background"
+              ]
+            },
+            "localBindings": {
+              "$ref": "#/definitions/localBindings"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "sheetDialog"
+            },
+            "id": {
+              "type": "string"
+            },
+            "title": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "$ref": "#/definitions/header"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "content": {
+              "$ref": "#/definitions/primitive"
+            },
+            "footer": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/panel"
+                },
+                {
+                  "$ref": "#/definitions/container"
+                }
+              ]
+            },
+            "isOpen": {
+              "type": "boolean"
+            },
+            "appearance": {
+              "enum": [
+                "fullscreen"
+              ]
+            },
+            "closable": {
+              "type": "boolean"
+            },
+            "showBar": {
+              "type": "boolean"
+            },
+            "stops": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "initialStopIndex": {
+              "type": "number"
+            },
+            "offset": {
+              "type": "number"
+            },
+            "style": {
+              "type": "object"
+            },
+            "classes": {
+              "type": "string"
+            },
+            "localBindings": {
+              "$ref": "#/definitions/localBindings"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/definitions/microfrontend"
+        }
+      ]
+    },
+    "dataSource": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "http"
+        },
+        "mode": {
+          "enum": [
+            "onLoad",
+            "manual"
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "method": {
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH",
+            "OPTIONS",
+            "HEAD"
+          ]
+        },
+        "credentials": {
+          "enum": [
+            "omit",
+            "same-origin",
+            "include"
+          ]
+        },
+        "body": {
+          "type": [
+            "object",
+            "string"
+          ]
+        },
+        "headers": {
+          "type": "object"
+        },
+        "timeout": {
+          "type": "number"
+        },
+        "redirect": {
+          "enum": [
+            "follow",
+            "error",
+            "manual"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "required": [
+        "type",
+        "url"
+      ]
+    },
+    "loader": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "loader"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/definitions/primitive"
+        },
+        "size": {
+          "enum": [
+            "s",
+            "m",
+            "l",
+            "xl",
+            "xxl"
+          ]
+        },
+        "show": {
+          "type": "boolean"
+        },
+        "inheritColor": {
+          "type": "boolean"
+        },
+        "overlay": {
+          "type": "boolean"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "textfield": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "textfield"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "size": {
+          "enum": [
+            "s",
+            "m",
+            "l"
+          ]
+        },
+        "inputType": {
+          "enum": [
+            "text",
+            "email",
+            "password"
+          ]
+        },
+        "filler": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "autocomplete": {
+          "type": "string"
+        },
+        "readOnly": {
+          "type": "boolean"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "invalid": {
+          "type": "boolean"
+        },
+        "showCleaner": {
+          "type": "boolean"
+        },
+        "iconStart": {
+          "type": "string"
+        },
+        "iconEnd": {
+          "type": "string"
+        },
+        "contentEnd": {
+          "$ref": "#/definitions/primitive"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "badge": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "badge"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/definitions/primitive"
+        },
+        "appearance": {
+          "type": "string"
+        },
+        "size": {
+          "enum": [
+            "s",
+            "m",
+            "l",
+            "xl"
+          ]
+        },
+        "iconStart": {
+          "type": "string"
+        },
+        "iconEnd": {
+          "type": "string"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cell": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "cell"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/definitions/primitive"
+        },
+        "contentStart": {
+          "$ref": "#/definitions/primitive"
+        },
+        "contentEnd": {
+          "$ref": "#/definitions/primitive"
+        },
+        "appearance": {
+          "enum": [
+            "flat",
+            "none",
+            "flat-stretched"
+          ]
+        },
+        "size": {
+          "enum": [
+            "s",
+            "m",
+            "l"
+          ]
+        },
+        "height": {
+          "enum": [
+            "spacious",
+            "compact",
+            "normal"
+          ]
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "title": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "title"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "uptitle": {
+          "$ref": "#/definitions/primitive"
+        },
+        "title": {
+          "$ref": "#/definitions/primitive"
+        },
+        "subtitle": {
+          "$ref": "#/definitions/primitive"
+        },
+        "appearance": {
+          "enum": [
+            "accessories"
+          ]
+        },
+        "size": {
+          "enum": [
+            "l",
+            "m",
+            "s"
+          ]
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "header": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "header"
+        },
+        "id": {
+          "type": "string"
+        },
+        "style": {
+          "type": "object"
+        },
+        "classes": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/definitions/title"
+        },
+        "contentEnd": {
+          "$ref": "#/definitions/panel"
+        },
+        "size": {
+          "enum": [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "body-xl",
+            "body-l",
+            "body-m"
+          ]
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "invisibleMode": {
+          "enum": [
+            "hidden",
+            "transparent"
+          ]
+        },
+        "localBindings": {
+          "$ref": "#/definitions/localBindings"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

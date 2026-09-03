@@ -1,0 +1,86 @@
+# Что показывает: форма на textfield и условия.
+# Механизмы: событие text у textfield, производное значение (авто-slug),
+# condition на уровне биндинга (весь биндинг) и disabled-логика,
+# несколько источников в context одного биндинга, сервис alerts.
+type: component
+root:
+  type: panel
+  style:
+    align-items: center
+    flex-direction: column
+    gap: 2rem
+    padding: 2rem
+  items:
+    - type: text
+      style:
+        font: var(--tui-font-heading-h2)
+      text: Создание записи
+    - type: container
+      style:
+        border-radius: var(--tui-radius-l)
+        box-shadow: var(--tui-shadow-small)
+        min-inline-size: 400px
+        padding: 1.25rem
+      content:
+        type: panel
+        style:
+          flex-direction: column
+          gap: 1rem
+        items:
+          - type: textfield
+            id: nameInput
+            label: Название
+            size: l
+          - type: textfield
+            id: codeInput
+            label: Код (генерируется из названия)
+            size: l
+          - type: button
+            id: submitButton
+            disabled: true
+            content:
+              type: text
+              text: Создать
+services:
+  - type: alerts
+bindings:
+  # Производное значение: название -> slug в поле кода.
+  - triggers:
+      nameInput:
+        - text
+    actions:
+      - target: codeInput
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": $replace($lowercase(nameInput.text), " ", "-")}'
+  # Кнопка активна, только когда оба поля заполнены.
+  - triggers:
+      codeInput:
+        - text
+      nameInput:
+        - text
+    actions:
+      - target: submitButton
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"disabled": $not($boolean(nameInput.text) and $boolean(codeInput.text))}'
+  # Отправка: condition на уровне биндинга страхует от пустых значений.
+  - triggers:
+      submitButton:
+        - click
+    context:
+      codeInput:
+        - text
+      nameInput:
+        - text
+    condition:
+      type: JSONata
+      expression: $boolean(nameInput.text) and $boolean(codeInput.text)
+    actions:
+      - target: alerts
+        action: show
+        payload:
+          type: JSONata
+          expression: '{"header": "Создано: " & nameInput.text, "content": "code = " & codeInput.text, "appearance": "positive"}'

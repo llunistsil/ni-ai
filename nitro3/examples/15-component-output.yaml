@@ -1,0 +1,125 @@
+# Что показывает: output-пропс компонента — канал «дочерний -> родитель».
+# Механизмы: properties (direction: output), публикация изнутри через
+# target: COMPONENT + setInputs (несмотря на имя, изнутри он ставит любые
+# доступные properties, включая outputs), чтение output'а родителем —
+# триггер на id componentPresenter'а (взаимодействие с презентером =
+# взаимодействие с компонентом), чтение input'а изнутри через context
+# (COMPONENT: request). Прямые биндинги через границу компонента запрещены —
+# input вниз и output вверх это единственный легальный канал;
+# direction: bidirectional даёт чтение и запись с обеих сторон сразу.
+type: component
+root:
+  type: panel
+  style:
+    align-items: flex-start
+    flex-direction: column
+    gap: 1.5rem
+    padding: 2rem
+  items:
+    - type: text
+      style:
+        font: var(--tui-font-heading-h2)
+      text: Заявки на доступ
+    - type: componentPresenter
+      id: reviewCard
+      componentId: approvalCard
+      inputs:
+        request:
+          id: REQ-42
+          title: Доступ к стенду preprod
+    - type: text
+      id: verdictText
+      style:
+        color: var(--tui-text-secondary)
+      text: Решения пока нет
+components:
+  approvalCard:
+    type: component
+    id: COMPONENT
+    properties:
+      request:
+        direction: input
+      decision:
+        direction: output
+    root:
+      type: container
+      style:
+        border-radius: var(--tui-radius-l)
+        box-shadow: var(--tui-shadow-small)
+        min-inline-size: 360px
+        padding: 1.25rem
+      content:
+        type: panel
+        style:
+          flex-direction: column
+          gap: 1rem
+        items:
+          - type: text
+            id: requestTitle
+            style:
+              font: var(--tui-font-text-l)
+          - type: panel
+            style:
+              gap: 0.75rem
+            items:
+              - type: button
+                id: approveButton
+                size: m
+                content:
+                  type: text
+                  text: Согласовать
+              - type: button
+                id: rejectButton
+                appearance: secondary
+                size: m
+                content:
+                  type: text
+                  text: Отклонить
+    bindings:
+      # Input изнутри: триггер COMPONENT.<prop>.
+      - triggers:
+          COMPONENT:
+            - request
+        actions:
+          - target: requestTitle
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"text": COMPONENT.request.id & " — " & COMPONENT.request.title}'
+      # Публикация output изнутри: target COMPONENT + setInputs.
+      # Input request здесь читается как context.
+      - triggers:
+          approveButton:
+            - click
+        context:
+          COMPONENT:
+            - request
+        actions:
+          - target: COMPONENT
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"decision": {"id": COMPONENT.request.id, "verdict": "approved"}}'
+      - triggers:
+          rejectButton:
+            - click
+        context:
+          COMPONENT:
+            - request
+        actions:
+          - target: COMPONENT
+            action: setInputs
+            payload:
+              type: JSONata
+              expression: '{"decision": {"id": COMPONENT.request.id, "verdict": "rejected"}}'
+bindings:
+  # Родитель читает output дочернего триггером на id презентера.
+  - triggers:
+      reviewCard:
+        - decision
+    actions:
+      - target: verdictText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": reviewCard.decision.id & ": " & (reviewCard.decision.verdict = "approved" ? "согласовано" : "отклонено")}'

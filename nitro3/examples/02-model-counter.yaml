@@ -1,0 +1,86 @@
+# Что показывает: модель как состояние + биндинги "событие -> действие".
+# Механизмы: models (schema + default), triggers/context/actions,
+# action set (ВСЕГДА полная замена состояния, не merge!), setInputs,
+# JSONata- и NitroPayload-трансформеры, управление visible через setInputs.
+type: component
+root:
+  type: panel
+  style:
+    align-items: center
+    flex-direction: column
+    gap: 1.5rem
+    padding: 2rem
+  items:
+    - type: text
+      id: counterText
+      style:
+        font: var(--tui-font-heading-h2)
+      text: "Счёт: 0"
+    - type: panel
+      style:
+        gap: 1rem
+      items:
+        - type: button
+          id: incButton
+          size: m
+          content:
+            type: text
+            text: "+1"
+        - type: button
+          id: resetButton
+          appearance: secondary
+          size: m
+          content:
+            type: text
+            text: Сброс
+    - type: text
+      id: praiseText
+      visible: false
+      style:
+        color: var(--tui-text-positive)
+      text: Пять и больше — отлично!
+models:
+  counter:
+    schema:
+      type: object
+      properties:
+        count:
+          type: number
+          default: 0
+bindings:
+  - triggers:
+      incButton:
+        - click
+    context:
+      counter:
+        - state
+    actions:
+      - target: counter
+        action: set
+        payload:
+          type: JSONata
+          expression: '{"count": counter.state.count + 1}'
+  - triggers:
+      resetButton:
+        - click
+    actions:
+      - target: counter
+        action: set
+        payload:
+          type: NitroPayload
+          value:
+            count: 0
+  - triggers:
+      counter:
+        - state
+    actions:
+      - target: counterText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": "Счёт: " & $string(counter.state.count)}'
+      - target: praiseText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"visible": counter.state.count >= 5}'

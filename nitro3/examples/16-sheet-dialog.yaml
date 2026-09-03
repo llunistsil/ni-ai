@@ -1,0 +1,114 @@
+# Что показывает: нижняя шторка sheetDialog и автозагрузка данных.
+# Механизмы: сервис sheetDialog (НЕ глобальный — id обязателен; title
+# строкой, content — любой примитив), actions show/hide с ОБЯЗАТЕЛЬНЫМ
+# payload (value: null — рантайм падает на action без payload), output
+# isOpen как триггер, dataSource с mode: onLoad (запрос уходит при
+# инициализации компонента с body из конфига — action send не нужен).
+# Расширенные поля шторки (footer, stops, initialStopIndex, offset,
+# appearance: fullscreen, closable, showBar) есть в схеме v2 — добавлять
+# по мере надобности.
+type: component
+root:
+  type: panel
+  style:
+    align-items: flex-start
+    flex-direction: column
+    gap: 1rem
+    padding: 2rem
+  items:
+    - type: text
+      style:
+        font: var(--tui-font-heading-h2)
+      text: Профиль оператора
+    - type: button
+      id: openProfileButton
+      size: m
+      content:
+        type: text
+        text: Открыть профиль
+    - type: text
+      id: sheetStateText
+      style:
+        color: var(--tui-text-secondary)
+      text: Шторка закрыта
+services:
+  - type: sheetDialog
+    id: profileSheet
+    title: Профиль
+    content:
+      type: panel
+      style:
+        flex-direction: column
+        gap: 0.75rem
+      items:
+        - type: text
+          id: profileName
+          style:
+            font: var(--tui-font-heading-h3)
+          text: —
+        - type: text
+          id: profileEmail
+          style:
+            color: var(--tui-text-secondary)
+          text: —
+        - type: button
+          id: closeSheetButton
+          appearance: secondary
+          size: m
+          content:
+            type: text
+            text: Закрыть
+dataSources:
+  profileDS:
+    type: http
+    mode: onLoad
+    url: /demo/api/profile/get
+    method: POST
+    credentials: same-origin
+    body:
+      id: demo-user
+bindings:
+  # Данные пришли при инициализации — заполняем контент шторки.
+  - triggers:
+      profileDS:
+        - success
+    actions:
+      - target: profileName
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": profileDS.success.body.name}'
+      - target: profileEmail
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": profileDS.success.body.email}'
+  # Открытие/закрытие: payload обязателен даже у безпараметрных actions.
+  - triggers:
+      openProfileButton:
+        - click
+    actions:
+      - target: profileSheet
+        action: show
+        payload:
+          type: NitroPayload
+          value: null
+  - triggers:
+      closeSheetButton:
+        - click
+    actions:
+      - target: profileSheet
+        action: hide
+        payload:
+          type: NitroPayload
+          value: null
+  # isOpen — обычный output: годится как триггер.
+  - triggers:
+      profileSheet:
+        - isOpen
+    actions:
+      - target: sheetStateText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": profileSheet.isOpen ? "Шторка открыта" : "Шторка закрыта"}'

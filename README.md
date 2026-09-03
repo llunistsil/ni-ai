@@ -59,7 +59,7 @@ serve в браузере и проверяешь руками.
   interval таймера ≥ 1000; v0.2 —
   добавлены localBindings по типам платформы, bindingAction/bindingSources,
   mode у dataSource и timer, починены isActiveMatchOptions и menuGroup)
-- `examples/*.yaml` — 12 эталонов, каждый про один механизм (шапка файла говорит,
+- `examples/*.yaml` — 13 эталонов, каждый про один механизм (шапка файла говорит,
   про какой)
 - `canonical/nitro-editor.yaml` — реальный конфиг редактора, не редактировать
 - `tools/validate.mjs` — валидатор: ajv по схеме + семантика (ссылки биндингов
@@ -80,7 +80,7 @@ serve в браузере и проверяешь руками.
 link, textfield, tabs, router, dropdown, menu, menuGroup, loader, iframe,
 microfrontend, componentPresenter, component. Других НЕТ: чекбоксов, свитчей
 и радио не существует — переключатели делаются кнопками с appearance-состоянием
-из модели (паттерн — checklist-fixed.yaml в корне пакета).
+из модели (паттерн — эталон 13-toggle-buttons.yaml).
 Сервисы: alerts, navigation, browserTab, browserEnvironment, timer,
 микрофронт-как-сервис.
 

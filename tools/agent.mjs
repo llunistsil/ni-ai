@@ -12,6 +12,7 @@
  *   NITRO_MAX_TURNS  — максимум ходов цикла (default: 15)
  *   NITRO_MAX_TOKENS — если задан, уходит как max_completion_tokens
  *   NITRO_AGENT_FAKE — 1: прогон без сети на скриптованных ответах (проверка механики)
+ *   NITRO_TRACE      — 1: то же, что флаг --trace (полный messages в out/trace.json)
  *
  * TLS: если корпоративный сертификат не в доверенных у node —
  *   NODE_EXTRA_CA_CERTS=/путь/к/corp-ca.pem (предпочтительно)
@@ -51,10 +52,24 @@ function firstCommentLine(text) {
   return line ? line.replace(/^#\s*/, '') : '';
 }
 
+// Состояние одного прогона, наполняется инструментами.
 let written = null;
-const readCache = new Set();
+const alreadyRead = new Set(); // имена прочитанных примеров: повторное чтение отклоняем
 let lastValidateErrors = null;
 let validateFails = 0;
+
+// Учёт серии неудачных валидаций — подсказки против зацикливания модели.
+// Учитываются обе точки входа: validate_config и гейт внутри write_config.
+function noteValidationOk() { lastValidateErrors = null; validateFails = 0; }
+function noteValidationFail(errors) {
+  validateFails++;
+  const key = errors.join('\n');
+  const repeat = key === lastValidateErrors;
+  lastValidateErrors = key;
+  if (repeat) return '\n\n(это ТЕ ЖЕ ошибки, что и в прошлый раз — не перечитывай примеры, исправь именно указанные места и вызови validate_config снова)';
+  if (validateFails >= 3) return `\n\n(уже ${validateFails} неудачных проверок подряд — читай ошибки буквально: если тип, функция или событие названы несуществующими, замени их на существующие из списка в ошибке, а не переставляй поля)`;
+  return '';
+}
 
 const toolHandlers = {
   list_examples() {
@@ -65,26 +80,20 @@ const toolHandlers = {
   read_example({ name }) {
     const file = exampleFiles().find(p => basename(p) === name);
     if (!file) return `Ошибка: примера "${name}" нет. Возьми имя из list_examples.`;
-    if (readCache.has(name)) return `Пример ${name} уже прочитан — его полный текст выше в истории. Повторно не читаю, используй его.`;
-    readCache.add(name);
+    if (alreadyRead.has(name)) return `Пример ${name} уже прочитан — его полный текст выше в истории. Повторно не читаю, используй его.`;
+    alreadyRead.add(name);
     return readFileSync(file, 'utf8');
   },
   validate_config({ yaml }) {
     const { ok, errors, warnings } = validateConfigText(yaml ?? '');
     const warn = warnings.length ? `\nПредупреждения (не блокируют):\n${warnings.join('\n')}` : '';
-    if (ok) { lastValidateErrors = null; validateFails = 0; return 'OK: конфиг валиден (schema + semantic).' + warn; }
-    validateFails++;
-    const key = errors.join('\n');
-    const repeat = key === lastValidateErrors;
-    lastValidateErrors = key;
-    let suffix = '';
-    if (repeat) suffix = '\n\n(это ТЕ ЖЕ ошибки, что и в прошлый раз — не перечитывай примеры, исправь именно указанные места и вызови validate_config снова)';
-    else if (validateFails >= 3) suffix = `\n\n(уже ${validateFails} неудачных проверок подряд — читай ошибки буквально: если тип, функция или событие названы несуществующими, замени их на существующие из списка в ошибке, а не переставляй поля)`;
-    return `Ошибки:\n${key}${warn}${suffix}`;
+    if (ok) { noteValidationOk(); return 'OK: конфиг валиден (schema + semantic).' + warn; }
+    return `Ошибки:\n${errors.join('\n')}${warn}${noteValidationFail(errors)}`;
   },
   write_config({ yaml }) {
     const { ok, errors, warnings } = validateConfigText(yaml ?? '');
-    if (!ok) return `Отклонено, конфиг невалиден:\n${errors.join('\n')}`;
+    if (!ok) return `Отклонено, конфиг невалиден:\n${errors.join('\n')}${noteValidationFail(errors)}`;
+    noteValidationOk();
     const warn = warnings.length ? `\nПредупреждения (не блокируют):\n${warnings.join('\n')}` : '';
     mkdirSync(outDir, { recursive: true });
     const target = resolve(outDir, 'app.yaml');
@@ -148,10 +157,10 @@ async function callModel(messages) {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    let body = await res.text();
-    if (/^\s*</.test(body)) body = `HTML вместо JSON, начало ответа: ${body.slice(0, 200)}…`;
-    else if (body.length > 600) body = body.slice(0, 600) + '…';
-    throw new Error(`LLM Proxy ${res.status}: ${body}`);
+    let errText = await res.text();
+    if (/^\s*</.test(errText)) errText = `HTML вместо JSON, начало ответа: ${errText.slice(0, 200)}…`;
+    else if (errText.length > 600) errText = errText.slice(0, 600) + '…';
+    throw new Error(`LLM Proxy ${res.status}: ${errText}`);
   }
   return res.json();
 }
@@ -191,7 +200,6 @@ async function run(task) {
 
     messages.push(msg);
     const calls = msg.tool_calls ?? [];
-    if (calls.length === 0) break;
 
     for (const call of calls) {
       const name = call.function?.name;
@@ -201,19 +209,27 @@ async function run(task) {
       catch (e) { output = `Ошибка: arguments не парсятся как JSON (${e.message}).`; }
       console.log(`[tool] ${name}(${(call.function?.arguments || '{}').slice(0, 120)})`);
       if (output === undefined) {
-        try { output = toolHandlers[name]?.(args) ?? `Неизвестный инструмент: ${name}`; }
+        // Object.hasOwn: имя инструмента приходит от модели, обращение напрямую
+        // резолвило бы и методы Object.prototype (toString и т.п.).
+        try { output = Object.hasOwn(toolHandlers, name) ? toolHandlers[name](args) : `Неизвестный инструмент: ${name}`; }
         catch (e) { output = `Ошибка инструмента: ${e.message}`; }
       }
       const text = String(output);
-      if (name === 'read_example') console.log(`      → ${text.split('\n').length} строк`);
-      else if (name === 'list_examples') console.log(`      → ${text.split('\n').length} примеров`);
-      else console.log(text.split('\n').map(l => '      ' + l).join('\n'));
+      // Многострочные ответы read_example/list_examples сворачиваем в счётчик,
+      // однострочные (ошибки, отказ повторного чтения) показываем как есть.
+      if ((name === 'read_example' || name === 'list_examples') && text.includes('\n')) {
+        console.log(`      → ${text.trimEnd().split('\n').length} ${name === 'read_example' ? 'строк' : 'примеров'}`);
+      } else {
+        console.log(text.split('\n').map(l => '      ' + l).join('\n'));
+      }
       messages.push({ role: 'tool', tool_call_id: call.id, content: text });
     }
+    // Трасса пишется до выхода из цикла, чтобы финальный ответ модели в неё попал.
     if (TRACE) {
       mkdirSync(outDir, { recursive: true });
       writeFileSync(resolve(outDir, 'trace.json'), JSON.stringify({ model: MODEL, turn, messages }, null, 2), 'utf8');
     }
+    if (calls.length === 0) break;
   }
 
   if (written) {

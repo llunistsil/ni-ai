@@ -26,14 +26,12 @@ const ajvFull = new Ajv2020({ strict: false, allErrors: true });
 const validateFull = ajvFull.compile(schema);
 
 // ---------- Пер-узловые валидаторы по веткам типов ----------
-// Дети-примитивы, вложенные компоненты и трансформеры застаблены:
-// их проверяет собственный визит обхода — поэтому ошибки узла точечные.
+// Дети-примитивы и трансформеры застаблены: их проверяет собственный визит
+// обхода — поэтому ошибки узла точечные.
 const ajvNode = new Ajv2020({ strict: false, allErrors: true });
 const stubDefs = structuredClone(schema.definitions);
 stubDefs.primitive = { type: 'object' };
-stubDefs.component = { type: 'object' };
 stubDefs.payloadTransformer = { type: 'object' };
-stubDefs.service = { type: 'object' };
 
 const primitiveDefNames = (schema.definitions.primitive.oneOf ?? [])
   .map(v => v?.$ref?.split('/').pop())
@@ -43,15 +41,17 @@ for (const name of primitiveDefNames) {
   if (name === 'component') continue;
   const def = schema.definitions[name];
   const c = def?.properties?.type?.const;
-  if (c) primitiveValidators.set(c, ajvNode.compile({ definitions: stubDefs, ...structuredClone(def) }));
+  if (c) primitiveValidators.set(c, ajvNode.compile({ definitions: stubDefs, ...def }));
 }
 const ALLOWED_PRIMITIVES = [...primitiveValidators.keys(), 'component'].sort().join(', ');
 
 const serviceValidators = new Map();
 for (const variant of schema.definitions.service.oneOf ?? []) {
   const c = variant?.properties?.type?.const;
-  if (c) serviceValidators.set(c, ajvNode.compile(structuredClone(variant)));
+  if (c) serviceValidators.set(c, ajvNode.compile(variant));
 }
+// microfrontend — примитив, но схема допускает его и в services ($ref-вариант
+// в service.oneOf, который цикл выше пропускает); переиспользуем его валидатор.
 serviceValidators.set('microfrontend', primitiveValidators.get('microfrontend'));
 const ALLOWED_SERVICES = [...serviceValidators.keys()].sort().join(', ');
 
@@ -109,7 +109,7 @@ function walkPrimitives(node, path, visit) {
   if (!node || typeof node !== 'object' || Array.isArray(node)) return;
   visit(node, path);
   if (node.type === 'component') return; // отдельная область — обработает checkComponent
-  for (const key of ['content', 'trigger', 'moreContent']) walkPrimitives(node[key], `${path}.${key}`, visit);
+  for (const key of ['content', 'contentEnd', 'trigger', 'moreContent']) walkPrimitives(node[key], `${path}.${key}`, visit);
   (node.items ?? []).forEach((c, i) => walkPrimitives(c, `${path}.items[${i}]`, visit));
   (node.groups ?? []).forEach((c, i) => walkPrimitives(c, `${path}.groups[${i}]`, visit));
   for (const [k, c] of Object.entries(node.areas ?? {})) walkPrimitives(c, `${path}.areas.${k}`, visit);
@@ -123,11 +123,14 @@ function walkPrimitives(node, path, visit) {
 
 // ---------- Выражения ----------
 
-function walkAst(node, cb) {
+function walkAst(node, cb, skipKeys) {
   if (!node || typeof node !== 'object') return;
-  if (Array.isArray(node)) { for (const n of node) walkAst(n, cb); return; }
+  if (Array.isArray(node)) { for (const n of node) walkAst(n, cb, skipKeys); return; }
   cb(node);
-  for (const v of Object.values(node)) walkAst(v, cb);
+  for (const [k, v] of Object.entries(node)) {
+    if (skipKeys?.has(k)) continue;
+    walkAst(v, cb, skipKeys);
+  }
 }
 
 function analyzeJsonata(expression, where, issues, warnings) {
@@ -144,11 +147,12 @@ function analyzeJsonata(expression, where, issues, warnings) {
     if (n?.type === 'bind' && n.lhs?.type === 'variable') defined.add(n.lhs.value);
     if (n?.type === 'lambda') for (const a of n.arguments ?? []) if (a?.type === 'variable') defined.add(a.value);
   });
+  // Полный обход: функции, .length-линт и $$-корни ($$ — абсолютный корень DTO,
+  // он остаётся источником на любой глубине, в том числе внутри предикатов).
   walkAst(ast, n => {
     if (n?.type === 'path' && Array.isArray(n.steps) && n.steps.length) {
       const s0 = n.steps[0];
-      if (s0.type === 'name') roots.add(s0.value);
-      else if (s0.type === 'variable' && s0.value === '$' && n.steps[1]?.type === 'name') roots.add(n.steps[1].value);
+      if (s0.type === 'variable' && s0.value === '$' && n.steps[1]?.type === 'name') roots.add(n.steps[1].value);
       if (!lengthWarned && n.steps.some(s => s?.type === 'name' && s.value === 'length')) {
         lengthWarned = true;
         warnings.push(`[lint] ${where}: путь ".length" — в JSONata длина массива это $count(x)`);
@@ -169,6 +173,13 @@ function analyzeJsonata(expression, where, issues, warnings) {
       }
     }
   });
+  // Корни-имена — отдельным обходом, который не заходит в предикаты фильтров
+  // (stages/predicate: имена там относительны фильтруемому элементу, не DTO)
+  // и в имена вызываемых функций (procedure) — иначе валидный
+  // "items[checked=true]" ложно требует объявить источник "checked".
+  walkAst(ast, n => {
+    if (n?.type === 'path' && n.steps?.[0]?.type === 'name') roots.add(n.steps[0].value);
+  }, new Set(['stages', 'predicate', 'procedure']));
   return roots;
 }
 
@@ -189,6 +200,8 @@ function checkTransformerData(tr, allowed, scope, where, issues, warnings) {
   let roots = new Set();
   if (tr.type === 'JSONata' && typeof tr.expression === 'string') roots = analyzeJsonata(tr.expression, where, issues, warnings);
   else if (tr.type === 'NitroPayload') roots = nitroPayloadRoots(tr.value);
+  // Ошибка — только если корень совпадает с известным id компонента, но не
+  // объявлен в этом биндинге; прочие корни считаем полями payload и не трогаем.
   for (const root of roots) {
     if (allowed.has(root)) continue;
     if (!scope.has(root)) continue;
@@ -201,7 +214,6 @@ function checkTransformerData(tr, allowed, scope, where, issues, warnings) {
 // ---------- Семантика компонента ----------
 
 function eventsFor(entry) {
-  if (!entry) return null;
   if (entry.kind === 'model') return EVENTS.model;
   if (entry.kind === 'dataSource') return EVENTS.dataSource;
   if (entry.kind === 'service') return EVENTS[entry.type] ?? null;
@@ -211,7 +223,6 @@ function eventsFor(entry) {
 }
 
 function actionsFor(entry) {
-  if (!entry) return null;
   if (entry.kind === 'model') return ACTIONS.model;
   if (entry.kind === 'dataSource') return ACTIONS.dataSource;
   if (entry.kind === 'service') return ACTIONS[entry.type] ?? null;
@@ -251,6 +262,31 @@ function checkActions(actions, allowed, scope, where, issues, warnings) {
   });
 }
 
+// Общая голова любого блока-биндинга: проверить источники, собрать множество
+// объявленных корней (allowed) и проверить condition. У outputs триггеров нет —
+// собственные данные события приходят по имени события, allowed строится
+// только из context (withTriggers = false).
+function checkBindingHead(b, w, scope, issues, warnings, withTriggers = true) {
+  if (withTriggers) checkSources(b.triggers, scope, `${w}.triggers`, issues);
+  checkSources(b.context, scope, `${w}.context`, issues);
+  const allowed = new Set([
+    ...(withTriggers ? Object.keys(b.triggers ?? {}) : []),
+    ...Object.keys(b.context ?? {}),
+  ]);
+  checkTransformerData(b.condition, allowed, scope, `${w}.condition`, issues, warnings);
+  return allowed;
+}
+
+// Диспетч одного узла-примитива: true — узел оказался вложенным компонентом.
+function visitPrimitiveNode(node, p, issues, warnings) {
+  const t = node.type;
+  if (!t) issues.push(`[schema] ${p}: у примитива нет type; допустимые типы: ${ALLOWED_PRIMITIVES}`);
+  else if (t === 'component') { checkComponent(node, p, issues, warnings); return true; }
+  else if (!primitiveValidators.has(t)) issues.push(`[schema] ${p}: неизвестный тип примитива "${t}"; допустимые: ${ALLOWED_PRIMITIVES}`);
+  else pushNodeErrors(primitiveValidators.get(t), node, p, issues);
+  return false;
+}
+
 function checkComponent(component, path, issues, warnings) {
   // Структурная проверка самого узла-компонента (root/components/services — отдельно).
   pushNodeErrors(componentValidator, component, path, issues);
@@ -261,63 +297,62 @@ function checkComponent(component, path, issues, warnings) {
 
   // Один обход: структурная валидация каждого примитива + сбор области видимости.
   walkPrimitives(component.root, `${path}.root`, (node, p) => {
-    const t = node.type;
-    if (!t) issues.push(`[schema] ${p}: у примитива нет type; допустимые типы: ${ALLOWED_PRIMITIVES}`);
-    else if (t === 'component') { checkComponent(node, p, issues, warnings); return; }
-    else if (!primitiveValidators.has(t)) issues.push(`[schema] ${p}: неизвестный тип примитива "${t}"; допустимые: ${ALLOWED_PRIMITIVES}`);
-    else pushNodeErrors(primitiveValidators.get(t), node, p, issues);
+    if (visitPrimitiveNode(node, p, issues, warnings)) return;
     if (typeof node.id === 'string') {
       if (scope.has(node.id)) duplicates.add(node.id);
       scope.set(node.id, { kind: 'primitive', type: node.type, label: node.type ?? 'примитива' });
     }
   });
 
-  for (const key of Object.keys(component.models ?? {})) scope.set(key, { kind: 'model', label: 'модели' });
-  for (const key of Object.keys(component.dataSources ?? {})) scope.set(key, { kind: 'dataSource', label: 'dataSource' });
+  // Модели, dataSources и сервисы делят область видимости с примитивами:
+  // молчаливая перезапись увела бы диагностику к чужому виду сущности
+  // («события click нет у модели» вместо указания на дубликат id).
+  const describeEntry = e =>
+    e.kind === 'primitive' ? `примитив ${e.type ?? 'без типа'}` :
+    e.kind === 'model' ? 'модель' :
+    e.kind === 'dataSource' ? 'dataSource' :
+    e.kind === 'service' ? `сервис ${e.type}` : 'сам компонент';
+  const register = (key, entry) => {
+    if (scope.has(key)) issues.push(`${path}: дубликат id "${key}" в одной области видимости: ${describeEntry(entry)} и ${describeEntry(scope.get(key))}`);
+    scope.set(key, entry);
+  };
+  for (const key of Object.keys(component.models ?? {})) register(key, { kind: 'model', label: 'модели' });
+  for (const key of Object.keys(component.dataSources ?? {})) register(key, { kind: 'dataSource', label: 'dataSource' });
   (component.services ?? []).forEach((s, i) => {
     const sPath = `${path}.services[${i}]`;
     if (!s?.type) { issues.push(`[schema] ${sPath}: у сервиса нет type; допустимые: ${ALLOWED_SERVICES}`); return; }
     const v = serviceValidators.get(s.type);
     if (!v) { issues.push(`[schema] ${sPath}: неизвестный тип сервиса "${s.type}"; допустимые: ${ALLOWED_SERVICES}`); return; }
     pushNodeErrors(v, s, sPath, issues);
-    scope.set(s.id ?? s.type, { kind: 'service', type: s.type, label: `сервиса ${s.type}` });
+    register(s.id ?? s.type, { kind: 'service', type: s.type, label: `сервиса ${s.type}` });
   });
   for (const id of duplicates) issues.push(`${path}: дубликат id примитива "${id}" в одной области видимости`);
 
   (component.bindings ?? []).forEach((binding, i) => {
     const bPath = `${path}.bindings[${i}]`;
-    checkSources(binding.triggers, scope, `${bPath}.triggers`, issues);
-    checkSources(binding.context, scope, `${bPath}.context`, issues);
-    const allowed = new Set([...Object.keys(binding.triggers ?? {}), ...Object.keys(binding.context ?? {})]);
-    checkTransformerData(binding.condition, allowed, scope, `${bPath}.condition`, issues, warnings);
+    const allowed = checkBindingHead(binding, bPath, scope, issues, warnings);
     checkActions(binding.actions, allowed, scope, `${bPath}.actions`, issues, warnings);
   });
 
+  // Второй проход по дереву: localBindings проверяются только после полной
+  // сборки scope — модели, dataSources и сервисы регистрируются между проходами.
   walkPrimitives(component.root, `${path}.root`, (node, p) => {
     const local = node.localBindings;
     if (!local) return;
     const label = `${p}<${node.type}${node.id ? '#' + node.id : ''}>.localBindings`;
     for (const [name, b] of Object.entries(local.inputs ?? {})) {
       const w = `${label}.inputs.${name}`;
-      checkSources(b.triggers, scope, `${w}.triggers`, issues);
-      checkSources(b.context, scope, `${w}.context`, issues);
-      const allowed = new Set([...Object.keys(b.triggers ?? {}), ...Object.keys(b.context ?? {})]);
-      checkTransformerData(b.condition, allowed, scope, `${w}.condition`, issues, warnings);
+      const allowed = checkBindingHead(b, w, scope, issues, warnings);
       checkTransformerData(b.value, allowed, scope, `${w}.value`, issues, warnings);
     }
     for (const [name, b] of Object.entries(local.outputs ?? {})) {
       const w = `${label}.outputs.${name}`;
-      checkSources(b.context, scope, `${w}.context`, issues);
-      const allowed = new Set(Object.keys(b.context ?? {}));
-      checkTransformerData(b.condition, allowed, scope, `${w}.condition`, issues, warnings);
+      const allowed = checkBindingHead(b, w, scope, issues, warnings, false);
       checkActions(b.actions, allowed, scope, `${w}.actions`, issues, warnings);
     }
     for (const [name, b] of Object.entries(local.actions ?? {})) {
       const w = `${label}.actions.${name}`;
-      checkSources(b.triggers, scope, `${w}.triggers`, issues);
-      checkSources(b.context, scope, `${w}.context`, issues);
-      const allowed = new Set([...Object.keys(b.triggers ?? {}), ...Object.keys(b.context ?? {})]);
-      checkTransformerData(b.condition, allowed, scope, `${w}.condition`, issues, warnings);
+      const allowed = checkBindingHead(b, w, scope, issues, warnings);
       checkTransformerData(b.payload, allowed, scope, `${w}.payload`, issues, warnings);
     }
   });
@@ -349,23 +384,17 @@ export function validateConfigText(yamlText) {
 
   const errors = [];
   const warnings = [];
-  const semantic = [];
+  const issues = [];
 
   if (config && typeof config === 'object' && config.type === 'component') {
-    checkComponent(config, '$', semantic, warnings);
+    checkComponent(config, '$', issues, warnings);
   } else if (config && typeof config === 'object') {
-    walkPrimitives(config, '$', (node, p) => {
-      const t = node.type;
-      if (!t) semantic.push(`[schema] ${p}: у примитива нет type; допустимые типы: ${ALLOWED_PRIMITIVES}`);
-      else if (t === 'component') checkComponent(node, p, semantic, warnings);
-      else if (!primitiveValidators.has(t)) semantic.push(`[schema] ${p}: неизвестный тип примитива "${t}"; допустимые: ${ALLOWED_PRIMITIVES}`);
-      else pushNodeErrors(primitiveValidators.get(t), node, p, semantic);
-    });
+    walkPrimitives(config, '$', (node, p) => visitPrimitiveNode(node, p, issues, warnings));
   } else {
     return { ok: false, errors: ['конфиг пуст или не является объектом'], warnings: [] };
   }
 
-  for (const s of semantic) errors.push(s.startsWith('[') ? s : `[semantic] ${s}`);
+  for (const s of issues) errors.push(s.startsWith('[') ? s : `[semantic] ${s}`);
 
   // Страховка: полная схема на случай непокрытых обходом мест.
   const fullOk = validateFull(config);

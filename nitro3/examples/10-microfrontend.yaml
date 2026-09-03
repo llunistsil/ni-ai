@@ -1,0 +1,62 @@
+# Что показывает: подключение микрофронта как примитива.
+# Механизмы: microfrontend (url + initialConfig), передача данных в МФ
+# через setInputs {mfInput: ...}, приём событий из МФ через триггер mfOutput.
+# URL заменить на реальный МФ из каталога; демо-URL — заглушка.
+type: component
+root:
+  type: panel
+  style:
+    blockSize: 100%
+    display: grid
+    gap: 1rem
+    gridTemplateRows: auto 1fr
+    padding: 1.5rem
+  items:
+    - type: panel
+      style:
+        align-items: center
+        gap: 1rem
+      items:
+        - type: button
+          id: pingButton
+          size: m
+          content:
+            type: text
+            text: Отправить данные в МФ
+        - type: text
+          id: mfAnswerText
+          style:
+            color: var(--tui-text-secondary)
+          text: Ответа от МФ пока нет
+    - type: microfrontend
+      id: demoMf
+      style:
+        minBlockSize: "0"
+      url: https://twork-microfrontends-prod.cdn-tinkoff.ru/demo-mf/1.0.0/index.js
+      initialConfig:
+        theme: light
+        logsLevel: error
+bindings:
+  - triggers:
+      pingButton:
+        - click
+    actions:
+      - target: demoMf
+        action: setInputs
+        payload:
+          type: NitroPayload
+          value:
+            mfInput:
+              command: ping
+  - triggers:
+      demoMf:
+        - mfOutput
+    condition:
+      type: JSONata
+      expression: $boolean(demoMf.mfOutput)
+    actions:
+      - target: mfAnswerText
+        action: setInputs
+        payload:
+          type: JSONata
+          expression: '{"text": "МФ ответил: " & $string(demoMf.mfOutput)}'

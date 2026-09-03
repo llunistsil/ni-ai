@@ -1,0 +1,60 @@
+# Что показывает: вкладки.
+# Механизмы: tabs (tabs[].title / content — любые примитивы),
+# activeTabIndex, meta на вкладке.
+type: component
+root:
+  type: panel
+  style:
+    flex-direction: column
+    gap: 1rem
+    padding: 2rem
+  items:
+    - type: text
+      style:
+        font: var(--tui-font-heading-h2)
+      text: Настройки
+    - type: tabs
+      id: settingsTabs
+      activeTabIndex: 0
+      tabs:
+        - id: generalTab
+          meta:
+            code: general
+          title:
+            type: text
+            text: Общие
+          content:
+            type: panel
+            style:
+              flex-direction: column
+              gap: 1rem
+              padding: 1rem 0
+            items:
+              - type: textfield
+                id: displayNameInput
+                label: Отображаемое имя
+                size: m
+        - id: notificationsTab
+          meta:
+            code: notifications
+          title:
+            type: panel
+            style:
+              align-items: center
+              gap: 0.5rem
+            items:
+              - type: text
+                text: Уведомления
+              - type: badge
+                appearance: negative
+                size: s
+                content:
+                  type: text
+                  text: "3"
+          content:
+            type: panel
+            style:
+              padding: 1rem 0
+            items:
+              - type: text
+                text: Здесь настраиваются уведомления.
